@@ -1,0 +1,20 @@
+_commit: 4aec294
+_src_path: gh:grok-ai/py-template
+dependencies:
+- rich
+- python-dotenv
+- GitPython
+description: Utils and methods for weight-space merging.
+env_init: false
+license: MIT
+maintainers:
+-   email: donatocrisostomi@gmail.com
+    name: Donato Crisostomi
+package_name: model-merging
+push_to_remote: false
+python_version: '>=3.9'
+remote_github_project: model-merging
+remote_github_protocol: https
+remote_github_username: crisostomi
+remote_option: GitHub
+use_precommit: false
