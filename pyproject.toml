@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 enabled = true
 
 [project]
-name = "model-merging"
+name = "model_merging"
 description = "Utils and methods for weight-space merging."
 dynamic = ["version"]
 readme = "README.md"
@@ -20,7 +20,9 @@ dependencies = [
     
     "GitPython",
     
-    "model-merging"  # Add the current package name as a fixed dependency
+    "model-merging",  # Add the current package name as a fixed dependency
+
+    "backports.strenum"
 ]
 
 maintainers = [

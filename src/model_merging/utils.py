@@ -2,13 +2,61 @@ import logging
 import os
 import random
 from contextlib import contextmanager
-from typing import Optional
-
+from typing import Optional, Union, Dict
 
 import dotenv
 import numpy as np
+import pytorch_lightning as pl
+import torch
+import copy
+import time
+
+from functools import wraps
+
 
 pylogger = logging.getLogger(__name__)
+
+
+def linear_interpolate(
+    lambd: float,
+    model_a: Union[pl.LightningModule, Dict],
+    model_b: Union[pl.LightningModule, Dict],
+):
+    """
+    Linearly interpolate models given as LightningModules or as StateDicts.
+    """
+    pylogger.info(f"Evaluating interpolated model with lambda: {lambd}")
+
+    if isinstance(model_a, torch.Tensor) and isinstance(model_b, torch.Tensor):
+        # flat model parameters, interpolate them as vectors
+        return (1 - lambd) * model_a + lambd * model_b
+
+    if is_torch_or_lightning_module(model_a) and is_torch_or_lightning_module(model_b):
+        model_a = model_a.state_dict()
+        model_b = model_b.state_dict()
+
+    interpolated_model = copy.deepcopy(model_a)
+
+    for param_name in model_a:
+        interpolated_model[param_name] = (1 - lambd) * model_a[param_name] + (
+            lambd
+        ) * model_b[param_name]
+
+    return interpolated_model
+
+
+def is_torch_or_lightning_module(obj):
+    """
+    Check if the object is a PyTorch or PyTorch Lightning module.
+    """
+    return isinstance(obj, (torch.nn.Module, pl.LightningModule))
+
+
+def to_np(tensor):
+    if tensor.nelement() == 1:  # Check if the tensor is a scalar
+        return tensor.item()  # Convert a scalar tensor to a Python number
+    else:
+        return tensor.cpu().detach().numpy()  # Convert a tensor to a numpy array
 
 
 def get_env(env_name: str, default: Optional[str] = None) -> str:
@@ -90,7 +138,7 @@ def _select_seed_randomly(
     min_seed_value: int = min_seed_value, max_seed_value: int = max_seed_value
 ) -> int:
     """Select a random seed within the provided bounds."""
-    return random.randint(min_seed_value, max_seed_value) # noqa: S3
+    return random.randint(min_seed_value, max_seed_value)  # noqa: S3
 
 
 def seed_everything(seed: Optional[int] = None) -> int:
@@ -141,3 +189,18 @@ def seed_everything(seed: Optional[int] = None) -> int:
         pylogger.info("PyTorch not installed; skipping torch seeding.")
 
     return seed
+
+
+def timeit(func):
+    @wraps(func)
+    def timeit_wrapper(*args, **kwargs):
+
+        start_time = time.perf_counter()
+        result = func(*args, **kwargs)
+        end_time = time.perf_counter()
+        total_time = end_time - start_time
+        print(f"Function {func.__name__} Took {total_time:.4f} seconds")
+
+        return result
+
+    return timeit_wrapper

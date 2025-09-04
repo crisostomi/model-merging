@@ -11,8 +11,8 @@ from matplotlib.animation import FuncAnimation
 from pytorch_lightning import LightningModule
 from torch import Tensor
 
-from ccmm.matching.permutation_spec import PermutationSpec
-from ccmm.utils.utils import get_model, to_np
+from model_merging.utils import to_np
+from model_merging.permutations.permutation_spec import PermutationSpec
 
 # shape (n, n), contains the permutation matrix, e.g. [[1, 0, 0, 0], [0, 0, 0, 1], [0, 0, 1, 0], [0, 1, 0, 0]]
 PermutationMatrix = Tensor
@@ -352,3 +352,10 @@ def load_permutations(
                         permutations[source][target][perm_name] = torch.tensor(perm)
 
         return permutations
+
+
+def get_model(model):
+    while hasattr(model, "model"):
+        model = model.model
+
+    return model

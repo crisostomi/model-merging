@@ -6,10 +6,11 @@ import git
 
 from .utils import load_envs
 from rich.logging import RichHandler
-from rich.traceback import install
 
-# Enable pretty tracebacks
-install(show_locals=True)
+# from rich.traceback import install
+
+# # Enable pretty tracebacks
+# install(show_locals=True)
 
 # Set up Rich logging
 logging.basicConfig(
