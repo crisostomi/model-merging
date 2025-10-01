@@ -1,0 +1,7 @@
+_target_: model_merging.data.dataset.load_dataset
+name: EMNIST
+ft_epochs: 2
+preprocess_fn: ???
+hf_dataset: 
+  _target_: datasets.load_dataset
+  path: tanganke/emnist_mnist

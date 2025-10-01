@@ -1,0 +1,7 @@
+_target_: model_merging.data.dataset.load_dataset
+name: OxfordIIITPet
+ft_epochs: 82
+preprocess_fn: ???
+hf_dataset: 
+  _target_: datasets.load_dataset
+  path: timm/oxford-iiit-pet

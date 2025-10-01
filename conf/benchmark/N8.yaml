@@ -1,0 +1,9 @@
+datasets:
+  - ${dataset:"SUN397"} 
+  - ${dataset:"Cars"}
+  - ${dataset:"RESISC45"}
+  - ${dataset:"EuroSAT"}
+  - ${dataset:"SVHN"}
+  - ${dataset:"GTSRB"}
+  - ${dataset:"MNIST"}
+  - ${dataset:"DTD"}

@@ -1,0 +1,10 @@
+_target_: model_merging.data.dataset.load_dataset
+name: Food101
+ft_epochs: 4 
+preprocess_fn: ???
+hf_dataset: 
+  _target_: datasets.load_dataset
+  path: ethz/food101
+split_map:
+  train: train
+  test: validation

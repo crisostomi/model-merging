@@ -1,0 +1,7 @@
+_target_: model_merging.data.dataset.load_dataset
+name: SUN397
+ft_epochs: 14
+preprocess_fn: ???
+hf_dataset: 
+  _target_: datasets.load_dataset
+  path: tanganke/sun397

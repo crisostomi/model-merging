@@ -1,0 +1,3 @@
+datasets:
+  - ${dataset:"RESISC45"}
+  - ${dataset:"Cars"}

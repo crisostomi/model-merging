@@ -1,0 +1,7 @@
+_target_: model_merging.data.dataset.load_dataset
+name: Flowers102
+ft_epochs: 147
+preprocess_fn: ???
+hf_dataset: 
+  _target_: datasets.load_dataset
+  path: dpdl-benchmark/oxford_flowers102

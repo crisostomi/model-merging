@@ -221,3 +221,11 @@ fabric.properties
 
 .vscode/
 cache_dvc/
+
+
+
+# PROJECT SPECIFIC
+wandb/
+wandb/** 
+storage/**
+models/** 

@@ -1,0 +1,15 @@
+_target_: model_merging.data.dataset.load_dataset
+name: FER2013
+ft_epochs: 10
+preprocess_fn: ???
+hf_dataset: 
+  _target_: model_merging.data.dataset.load_fer2013
+label_map: null
+classnames_override: 
+  - angry
+  - disgusted
+  - fearful
+  - happy
+  - neutral
+  - sad
+  - surprised

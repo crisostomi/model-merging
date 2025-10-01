@@ -1,0 +1,45 @@
+
+defaults:
+  - _self_
+  - aggregator: ta
+
+_target_: model_merging.model.we_moe.WeightEnsemblingMoEAlgorithm
+
+x_key: ${conventions.x_key}
+y_key: ${conventions.y_key}
+dataset_names: {eval_dataset}
+
+image_encoder: ??  
+finetuned_models: ??
+classification_heads: ??
+tasks: ??
+save_checkpoint_path: ??
+
+
+checkpoint: false
+save_checkpoint: true
+router_hidden_layers: 2
+
+init_lambda: 0.3
+max_steps: 1000
+batch_size: 16
+batch_reduce: true
+use_grad_accumulate: true
+model_path: null
+
+
+
+optimizer:
+  _target_: torch.optim.AdamW
+  lr: 1e-4
+  # weight_decay: 0.1
+  # _target_: torch.optim.SGD
+  # lr: 0.1
+  # momentum: 0.9
+  # weight_decay: 1e-4
+
+lr_scheduler:
+  _target_: torch.optim.lr_scheduler.CosineAnnealingLR
+  T_max: 10
+
+

@@ -1,0 +1,7 @@
+_target_: model_merging.data.dataset.load_dataset
+name: GTSRB
+ft_epochs: 11 
+preprocess_fn: ???
+hf_dataset: 
+  _target_: datasets.load_dataset
+  path: tanganke/gtsrb
