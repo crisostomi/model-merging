@@ -229,3 +229,4 @@ wandb/
 wandb/** 
 storage/**
 models/** 
+**/models/**

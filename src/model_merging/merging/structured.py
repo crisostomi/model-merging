@@ -83,8 +83,8 @@ def isotropic_sum(ref_state_dict, svd_dict, device="cuda"):
 
 
 @torch.no_grad()
-def sum_svd(
-    ref_state_dict, svd_dicts, device="cuda", non_matrix_params_aggregation="base_model"
+def aggregate_decomposed_task_vectors(
+    ref_state_dict, decomposed_task_vectors, device="cuda", non_matrix_params_aggregation="base_model"
 ):
     """
     Takes the (SVD) for each vector in the task_vectors, and concatenate the low-rank matrices.
@@ -101,7 +101,7 @@ def sum_svd(
     aggregated_model_dict = ref_state_dict
     layer_names = list(aggregated_model_dict.keys())
 
-    datasets = list(svd_dicts.keys())
+    datasets = list(decomposed_task_vectors.keys())
 
     for layer_name in tqdm(layer_names, desc="Summing SVD"):
         is_matrix = aggregated_model_dict[layer_name].dim() == 2
@@ -117,7 +117,7 @@ def sum_svd(
 
             if is_matrix:
 
-                delta_layer_svd = svd_dicts[dataset][new_key]
+                delta_layer_svd = decomposed_task_vectors[dataset][new_key]
 
                 u, s, v = (
                     delta_layer_svd["u"],
@@ -128,7 +128,7 @@ def sum_svd(
 
                 if i == 0:
                     total_rank = sum(
-                        svd_dicts[d][new_key]["s"].shape[0] for d in datasets
+                        decomposed_task_vectors[d][new_key]["s"].shape[0] for d in datasets
                     )
                     sum_u = torch.zeros(u.shape[0], total_rank, device=device)
                     sum_s = torch.zeros(total_rank, device=device)
@@ -146,7 +146,7 @@ def sum_svd(
 
             # layer is not a matrix, compute the mean
             else:
-                delta_layer = svd_dicts[datasets[i]][new_key]["dim1"].to(device)
+                delta_layer = decomposed_task_vectors[datasets[i]][new_key]["dim1"].to(device)
 
                 if non_matrix_params_aggregation == "mean":
 
@@ -205,14 +205,13 @@ def compute_svd_and_compress(
     return u[:, :reduced_index_s], s[:reduced_index_s], v[:reduced_index_s, :]
 
 
-def compress_tv(task_dicts, compress_rate: float, compress_ratio_per_task=None):
+def decompose_task_vectors(task_dicts, compress_rate: float):
     """
     Compress task vectors using Singular Value Decomposition (SVD).
 
     Args:
         task_dicts (dict): A dictionary where keys are dataset names and values are task dicts.
         compress_rate (float): The fraction of singular values to keep for compression.
-        compress_ratio_per_task (dict, optional): Specific compression ratios per dataset.
 
     Returns:
         dict: A dictionary with the same structure as `task_dicts`, but with each layer matrix
@@ -228,27 +227,18 @@ def compress_tv(task_dicts, compress_rate: float, compress_ratio_per_task=None):
             svd_dict[dataset] = {}
 
             for key, layer in task_dict.items():
-                # Remove ".transformer" from the key but keep the layer
-                # TODO: check here
-                # new_key = key.replace(".transformer", "")
-                new_key = key
-
+                
                 if is_matrix(layer):
-                    # Use dataset-specific compression ratio if provided
-                    current_compress_rate = (
-                        compress_ratio_per_task.get(dataset, compress_rate)
-                        if compress_ratio_per_task
-                        else compress_rate
-                    )
+                    u, s, v = compute_svd_and_compress(layer, compress_rate)
 
-                    u, s, v = compute_svd_and_compress(layer, current_compress_rate)
-                    svd_dict[dataset][new_key] = {
+                    svd_dict[dataset][key] = {
                         "u": u.detach().cpu(),
                         "s": s.detach().cpu(),
                         "v": v.detach().cpu(),
                     }
+
                 else:
-                    svd_dict[dataset][new_key] = {"dim1": layer.detach().cpu()}
+                    svd_dict[dataset][key] = {"dim1": layer.detach().cpu()}
 
         return svd_dict
 
@@ -256,9 +246,8 @@ def compress_tv(task_dicts, compress_rate: float, compress_ratio_per_task=None):
 def get_svd_dict(
     task_dicts,
     datasets,
-    svd_path: str,
+    svd_path: str=None,
     compression_factor: float = None,
-    compress_ratio_per_task: dict = None,
 ):
     """
     Retrieves the SVD dictionary from disk if available, otherwise computes it from scratch and saves it.
@@ -277,11 +266,9 @@ def get_svd_dict(
     compression_ratio = 1 / compression_factor
     pylogger.info(f"Using compression ratio: {compression_ratio:.4f}")
 
-    svd_path = (
-        Path(svd_path).with_suffix("").as_posix() + f"_compress_{compression_factor}.pt"
-    )
+    svd_path = Path(svd_path) + f"_compress_{compression_factor}.pt"
 
-    if Path(svd_path).exists():
+    if svd_path is not None and Path(svd_path).exists():
         pylogger.info(f"Loading precomputed SVD dictionary from: {svd_path}")
         svd_dict = torch.load(svd_path, map_location="cuda")
 
@@ -293,7 +280,7 @@ def get_svd_dict(
     else:
         pylogger.info("No precomputed SVD dictionary found. Computing from scratch...")
 
-    svd_dict = compress_tv(task_dicts, compression_ratio, compress_ratio_per_task)
+    svd_dict = decompose_task_vectors(task_dicts, compression_ratio)
     torch.save(svd_dict, svd_path)
     pylogger.info(f"SVD dictionary saved at: {svd_path}")
 

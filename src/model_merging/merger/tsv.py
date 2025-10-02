@@ -1,6 +1,7 @@
 import copy
 from model_merging.merger.merger import TaskVectorBasedMerger
 from model_merging.model.encoder import ImageEncoder
+from model_merging.merging.structured import aggregate_decomposed_task_vectors, get_svd_dict
 from model_merging.utils.utils import (
     apply_dict_to_model,
     compute_task_dict,
@@ -56,9 +57,9 @@ class TaskSingularVectorsMerger(TaskVectorBasedMerger):
             task_dicts, datasets, self.svd_path, self.svd_compress_factor
         )
 
-        multi_task_vector = sum_svd(
+        multi_task_vector = aggregate_decomposed_task_vectors(
             ref_state_dict=copy.deepcopy(base_model.state_dict()),
-            svd_dicts=svd_dict,
+            decomposed_task_vectors=svd_dict,
             non_matrix_params_aggregation=self.non_matrix_params_aggregation,
         )
 

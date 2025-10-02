@@ -3,25 +3,25 @@
 # http://arxiv.org/abs/2405.07813
 
 datasets:
-  - "SUN397"
-  - "Cars"
-  - "RESISC45"
-  - "EuroSAT"
-  - "SVHN"
-  - "GTSRB"
-  - "MNIST"
-  - "DTD"
+  - ${dataset:"SUN397"}
+  - ${dataset:"Cars"}
+  - ${dataset:"RESISC45"}
+  - ${dataset:"EuroSAT"}
+  - ${dataset:"SVHN"}
+  - ${dataset:"GTSRB"}
+  - ${dataset:"MNIST"}
+  - ${dataset:"DTD"}
   # end of 8 tasks
-  - "Flowers102"
-  - "PCAM"
-  - "FER2013"
-  - "OxfordIIITPet"
-  - "STL10"
-  - "CIFAR100"
+  - ${dataset:"Flowers102"}
+  - ${dataset:"PCAM"}
+  - ${dataset:"FER2013"}
+  - ${dataset:"OxfordIIITPet"}
+  - ${dataset:"STL10"}
+  - ${dataset:"CIFAR100"}
   # end of 14 task
-  - "CIFAR10"
-  - "Food101"
-  - "FashionMNIST"
-  - "EMNIST"
-  - "KMNIST"
-  - "RenderedSST2"
+  - ${dataset:"CIFAR10"}
+  - ${dataset:"Food101"}
+  - ${dataset:"FashionMNIST"}
+  - ${dataset:"EMNIST"}
+  - ${dataset:"KMNIST"}
+  - ${dataset:"RenderedSST2"}
