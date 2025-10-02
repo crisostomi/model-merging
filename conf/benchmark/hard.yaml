@@ -2,4 +2,5 @@ datasets:
   - ${dataset:"Cars"}
   - ${dataset:"KMNIST"}
   - ${dataset:"RESISC45"}
-  - ${dataset:"EuroSAT"}
+  - ${dataset:"EMNIST"}
+  - ${dataset:"MNIST"}
