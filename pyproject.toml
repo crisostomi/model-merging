@@ -183,6 +183,11 @@ maintainers = [
 [tool.uv.sources]
 model-merging = { workspace = true }
 
+[tool.uv.workspace]
+members = [
+    ".",
+]
+
 [tool.pytest.ini_options]
 minversion = "6.2"
 addopts = "-ra"
