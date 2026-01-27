@@ -31,6 +31,4 @@ source "$PROJECT_DIR/cluster/cluster.env"
 # All arguments are passed directly to Hydra
 HYDRA_FULL_ERROR=1 uv run python scripts/evaluate_multitask_merging.py -m \
     'hydra/launcher=submitit_slurm' \
-    'benchmark=N20' \
-    'nn/encoder=b32' \
     "$@"
