@@ -2,6 +2,8 @@ import copy
 import logging
 import os
 from pathlib import Path
+import sys
+import traceback
 from typing import Any, Dict, List, Optional
 
 from model_merging.data.dataset import HFImageClassification
@@ -16,8 +18,8 @@ import torch
 from hydra import compose, initialize
 from hydra.utils import instantiate
 from lightning.pytorch import Callback
-from lightning.pytorch.plugins.environments import SLURMEnvironment
 from omegaconf import DictConfig, ListConfig, OmegaConf
+
 from torch.nn.utils import parameters_to_vector, vector_to_parameters
 
 from nn_core.callbacks import NNTemplateCore
@@ -50,6 +52,17 @@ pylogger = logging.getLogger(__name__)
 
 torch.set_float32_matmul_precision("high")
 
+from lightning.pytorch.plugins.environments import SLURMEnvironment
+
+# SOLID FIX: Monkey-patch the default to force auto_requeue=False globally
+# This ensures that whenever Lightning creates a SLURMEnvironment (internally or explicitly),
+# it will strictly refuse to auto-requeue.
+def _new_init(self, *args, **kwargs):
+    kwargs['auto_requeue'] = False
+    # Call the original __init__ with the forced kwarg
+    super(SLURMEnvironment, self).__init__(*args, **kwargs)
+
+SLURMEnvironment.__init__ = _new_init
 
 def load_config(
     config_path: str,
@@ -156,7 +169,7 @@ def run(cfg: DictConfig) -> str:
 
         trainer = pl.Trainer(
             default_root_dir=cfg.core.storage_dir,
-            plugins=[NNCheckpointIO(jailing_dir=logger.run_dir), SLURMEnvironment(auto_requeue=False)],
+            plugins=[NNCheckpointIO(jailing_dir=logger.run_dir)],
             logger=logger,
             callbacks=callbacks,
             **cfg.train.trainer,
@@ -204,8 +217,11 @@ def run(cfg: DictConfig) -> str:
 
 @hydra.main(config_path=str(PROJECT_ROOT / "conf"), config_name="multitask.yaml")
 def main(cfg: omegaconf.DictConfig):
-    run(cfg)
-
+    try:
+        run(cfg)
+    except Exception:
+        traceback.print_exc(file=sys.stderr)
+        raise
 
 if __name__ == "__main__":
     main()
