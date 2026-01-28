@@ -16,6 +16,7 @@ import torch
 from hydra import compose, initialize
 from hydra.utils import instantiate
 from lightning.pytorch import Callback
+from lightning.pytorch.plugins.environments import SLURMEnvironment
 from omegaconf import DictConfig, ListConfig, OmegaConf
 from torch.nn.utils import parameters_to_vector, vector_to_parameters
 
@@ -155,7 +156,7 @@ def run(cfg: DictConfig) -> str:
 
         trainer = pl.Trainer(
             default_root_dir=cfg.core.storage_dir,
-            plugins=[NNCheckpointIO(jailing_dir=logger.run_dir)],
+            plugins=[NNCheckpointIO(jailing_dir=logger.run_dir), SLURMEnvironment(auto_requeue=False)],
             logger=logger,
             callbacks=callbacks,
             **cfg.train.trainer,
