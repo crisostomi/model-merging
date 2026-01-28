@@ -4,17 +4,14 @@ alpha: null  # If provided, overrides optimal_alphas lookup
 
 optimal_alphas:
   ViT-B-32:
-    '2': 0.5 # TODO placeholder
     '8': 1.00
     '14': 1.00
     '20': 0.90
   ViT-B-16:
-    '2': 0.5 # TODO placeholder
     '8': 1.40
     '14': 1.20
     '20': 1.00
   ViT-L-14:
-    '2': 0.5 # TODO placeholder
     '8': 1.50
     '14': 1.30
     '20': 1.00

@@ -232,3 +232,8 @@ models/**
 **/models/**
 
 uv.lock
+
+results/ViT-B-32/**
+results/ViT-B-16/**
+results/ViT-L-14/**
+*.pdf
