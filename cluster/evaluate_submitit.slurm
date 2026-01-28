@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --job-name=evaluate_launcher
-#SBATCH --time=0:30:00
+#SBATCH --time=2:00:00
 #SBATCH --output=logs/launcher_%j.out
 #SBATCH --error=logs/launcher_%j.err
 #SBATCH --account=IscrC_LENS

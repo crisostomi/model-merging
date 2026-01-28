@@ -4,7 +4,8 @@ core:
   entity: gladia
   version: 0.0.1
   tags: 
-  - sweep
+  - iso
+  - low_rank
   
 defaults:
   - hydra: default
@@ -26,14 +27,13 @@ conventions:
   x_key: 'x'
   y_key: 'y'
 
-# compression_ratio = 1 / svd_compress_factor, if null the ratio is set to 1 / num_tasks
-svd_compress_factor: null
-
 misc:
   ckpt_path: ${oc.env:MODELS_PATH}/${nn.encoder.model_name}
   pretrained_checkpoint: ${misc.ckpt_path}/base/model.pt
   openclip_cachedir: "${oc.env:MODELS_PATH}/openclip_cache/"
   checkpoint_dir: ${oc.env:MODELS_PATH}/linear_router
-  svd_path: "${oc.env:MODELS_PATH}/svd_dict_${nn.encoder.model_name}.pt"
+  svd_path: null 
   finetuned_accuracy_path: "${oc.env:PROJECT_ROOT}/results/finetuning/accs.json"
   results_path: "${oc.env:PROJECT_ROOT}/results/${nn.encoder.model_name}/"
+
+
