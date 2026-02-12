@@ -6,7 +6,7 @@ pylogger = logging.getLogger(__name__)
 
 
 @torch.no_grad()
-def compute_task_vector(pretrained, finetuned) -> OrderedDict:
+def compute_task_vector(pretrained, finetuned, device="cuda") -> OrderedDict:
     new_state_dict = OrderedDict()
 
     for key in pretrained:
@@ -14,7 +14,7 @@ def compute_task_vector(pretrained, finetuned) -> OrderedDict:
             pylogger.info(f"Skipping key {key}")
             continue
 
-        difference = finetuned[key].cuda() - pretrained[key].cuda()
+        difference = finetuned[key].to(device) - pretrained[key].to(device)
         new_state_dict[key] = difference
 
     return new_state_dict

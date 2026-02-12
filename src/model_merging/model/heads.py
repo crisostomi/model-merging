@@ -30,7 +30,7 @@ def build_task_classification_head(
     model.eval()
     model.to(device)
 
-    print("Building classification head.")
+    pylogger.info("Building classification head.")
     with torch.no_grad():
         zeroshot_weights = []
 
@@ -87,7 +87,7 @@ def build_classification_head(model, dataset_name, template, device):
     model.eval()
     model.to(device)
 
-    print("Building classification head.")
+    pylogger.info("Building classification head.")
     with torch.no_grad():
         zeroshot_weights = []
 

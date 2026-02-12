@@ -47,6 +47,7 @@ class ImageClassifier(pl.LightningModule):
             metric, val, on_step=False, on_epoch=True
         )
 
+        self.task_name = None
         self.finetuning_accuracy = None
 
     def set_encoder(self, encoder: torch.nn.Module):
@@ -144,12 +145,12 @@ class ImageClassifier(pl.LightningModule):
         return self.forward(inputs)
 
     def save(self, filename):
-        print(f"Saving image classifier to {filename}")
+        pylogger.info(f"Saving image classifier to {filename}")
         torch_save(self, filename)
 
     @classmethod
     def load(cls, filename):
-        print(f"Loading image classifier from {filename}")
+        pylogger.info(f"Loading image classifier from {filename}")
         return torch_load(filename)
 
     def set_task(self, task_name):

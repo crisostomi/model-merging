@@ -95,7 +95,7 @@ class IsotropicCommonTaskSpecificMerger(TaskVectorBasedMerger):
         self.device = device
 
     @torch.no_grad()
-    def merge(self, base_model, finetuned_models) -> ImageEncoder | None:
+    def merge(self, base_model, finetuned_models) -> ImageEncoder:
 
         multi_task_vector = {}
 
@@ -211,7 +211,17 @@ class IsotropicCommonTaskSpecificMerger(TaskVectorBasedMerger):
                 )
             )
 
-        coefficient = self.optimal_alphas[self.model_name][num_tasks]
+        model_name = self.model_name
+        num_tasks_key = str(num_tasks)
+        if (
+            model_name in self.optimal_alphas
+            and num_tasks_key in self.optimal_alphas[model_name]
+        ):
+            coefficient = self.optimal_alphas[model_name][num_tasks_key]
+        else:
+            raise ValueError(
+                f"No optimal alpha found for model {model_name} with {num_tasks} tasks"
+            )
 
         merged_encoder: ImageEncoder = copy.deepcopy(base_model)
 

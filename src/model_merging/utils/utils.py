@@ -1,16 +1,21 @@
 from collections import OrderedDict
+from contextlib import contextmanager
+from functools import wraps
 import copy
+import json
 import logging
 import os
 import pickle
-import psutil
-import json
+import random
+import time
 import zipfile
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, Optional, Union
 
 import hydra
 import numpy as np
+import psutil
+import pytorch_lightning as pl
 import torch
 from omegaconf import ListConfig
 from pytorch_lightning import Callback
@@ -293,16 +298,14 @@ def reconstruct_tv_from_svddict(svd_dict, device="cuda"):
     return tv
 
 
-def apply_dict_to_model(task_vector_dict, model, coefficient: float = 1.0):
+def apply_dict_to_model(task_vector_dict, model, coefficient: float = 1.0, device="cuda"):
     """
     Applies a task vector dictionary to a model. The resulting model is the deep copy of the input model
-    on the GPU with the task vector applied to the weights.
+    with the task vector applied to the weights.
     """
     with torch.no_grad():
-        model.cuda()
-        new_state_dict = (
-            model.state_dict()
-        )  # Get model's state_dict (reference, not a copy)
+        model.to(device)
+        new_state_dict = model.state_dict()
 
         for key, value in task_vector_dict.items():
             new_key = key.replace("encoder.", "")
@@ -312,10 +315,10 @@ def apply_dict_to_model(task_vector_dict, model, coefficient: float = 1.0):
                 )
                 continue
             else:
-                new_state_dict[new_key] += coefficient * value.cuda()  # Update weight
+                new_state_dict[new_key] += coefficient * value.to(device)
 
-        model.load_state_dict(new_state_dict, strict=False)  # Load updated parameters
-    return model.cuda()
+        model.load_state_dict(new_state_dict, strict=False)
+    return model
 
 
 def sum_task_dict(task_vector_dict_1, task_vector_dict_2):
@@ -419,7 +422,7 @@ def unzip_all_in_folder(folder_path):
         None
     """
     if not os.path.isdir(folder_path):
-        print(f"Error: {folder_path} is not a valid directory.")
+        pylogger.error(f"{folder_path} is not a valid directory.")
         return
 
     for file in os.listdir(folder_path):
@@ -433,28 +436,7 @@ def unzip_all_in_folder(folder_path):
             with zipfile.ZipFile(zip_path, "r") as zip_ref:
                 zip_ref.extractall(extract_path)  # Extract files
 
-            print(f"Extracted: {zip_path} → {extract_path}")
-
-
-
-
-import logging
-import os
-import random
-from contextlib import contextmanager
-from typing import Optional, Union, Dict
-
-import dotenv
-import numpy as np
-import pytorch_lightning as pl
-import torch
-import copy
-import time
-
-from functools import wraps
-
-
-pylogger = logging.getLogger(__name__)
+            pylogger.info(f"Extracted: {zip_path} -> {extract_path}")
 
 
 def linear_interpolate(
@@ -627,7 +609,7 @@ def timeit(func):
         result = func(*args, **kwargs)
         end_time = time.perf_counter()
         total_time = end_time - start_time
-        print(f"Function {func.__name__} Took {total_time:.4f} seconds")
+        pylogger.info(f"Function {func.__name__} took {total_time:.4f} seconds")
 
         return result
 

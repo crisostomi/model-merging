@@ -2,7 +2,6 @@
 import copy
 import logging
 import math
-from math import sqrt
 
 import torch
 
@@ -35,7 +34,7 @@ def scale_nested(scalar, data):
         raise TypeError(f"Unsupported type: {type(data)}")
 
 
-def flatten_and_move_to_device(nested, device='cuda:0', clone=True):
+def flatten_and_move_to_device(nested, device='cuda', clone=True):
     """
     Recursively flatten nested tuples of dictionaries into a single dictionary,
     move all tensors to the specified device, optionally clone them.
@@ -82,7 +81,7 @@ class Module:
 def create_linear_mod(g, name, mass):
     def linear_dualize():
         U, S, Vt = torch.linalg.svd(g, full_matrices=False)
-        return {name: U @ Vt * sqrt(g.shape[0] / g.shape[1])}
+        return {name: U @ Vt * math.sqrt(g.shape[0] / g.shape[1])}
     M = Module(mass, 1, linear_dualize)
     return M
 
@@ -388,8 +387,8 @@ class DualMerger(TaskVectorBasedMerger):
         self.svd_compress_factor = svd_compress_factor
         self.model_name = model_name
 
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        print(f"🚀 IsotropicMerger initialized on device: {self.device}")
+        self.device = torch.device(device if device is not None else ("cuda" if torch.cuda.is_available() else "cpu"))
+        pylogger.info(f"DualMerger initialized on device: {self.device}")
         
     @torch.no_grad()
     def merge(self, base_model, finetuned_models):
@@ -428,9 +427,9 @@ class DualMerger(TaskVectorBasedMerger):
             svd_dict=svd_dict,
         )
         
-        list_layer = [ key for key in  multi_task_vector]
-        masses = {key : 0.5 for key in  multi_task_vector} # TODO masses can be configured and sweeped
-        module_net = build_clip_vit_network_module (list_layer, copy.deepcopy(multi_task_vector), masses)
+        list_layer = list(multi_task_vector.keys())
+        masses = {key: 0.5 for key in multi_task_vector}  # TODO: masses can be configured and swept
+        module_net = build_clip_vit_network_module(list_layer, copy.deepcopy(multi_task_vector), masses)
         module_vec = flatten_and_move_to_device(module_net['network'].get_dualitymap()())
         for key in module_vec:
             multi_task_vector[key] = module_vec[key]
@@ -449,7 +448,7 @@ class DualMerger(TaskVectorBasedMerger):
             )
 
         merged_encoder = copy.deepcopy(base_model)
-        print("USING ALPHA:", coefficient)
+        pylogger.info(f"Using alpha: {coefficient}")
         
         merged_encoder = apply_dict_to_model(
             multi_task_vector,
@@ -476,19 +475,19 @@ class DualCommonTaskSpecificMerger(TaskVectorBasedMerger):
         self.common_space_fraction = common_space_fraction
         self.optimal_alphas = optimal_alphas
         self.model_name = model_name
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.device = torch.device(device if device is not None else ("cuda" if torch.cuda.is_available() else "cpu"))
 
         self.svd_path = svd_path
         self.svd_compress_factor = svd_compress_factor
         
     @torch.no_grad()
-    def merge(self, base_model, finetuned_models) -> ImageEncoder | None:
+    def merge(self, base_model, finetuned_models) -> ImageEncoder:
         multi_task_vector = {}
         datasets = list(finetuned_models.keys())
         
         task_dicts = {}
-        list_layer = [ key for key in finetuned_models[datasets[0]]]
-        masses = {key : 0.5 for key in finetuned_models[datasets[0]]}
+        list_layer = list(finetuned_models[datasets[0]].keys())
+        masses = {key: 0.5 for key in finetuned_models[datasets[0]]}
         num_tasks = len(datasets)
 
         for dataset in datasets:
@@ -598,12 +597,23 @@ class DualCommonTaskSpecificMerger(TaskVectorBasedMerger):
                 )
             )
 
-        module_net = build_clip_vit_network_module (list_layer,copy.deepcopy(multi_task_vector), masses)
-        module_vec = flatten_and_move_to_device(module_net['network'].get_dualitymap()())
+        module_net = build_clip_vit_network_module(list_layer, copy.deepcopy(multi_task_vector), masses)
+        module_vec = flatten_and_move_to_device(module_net['network'].get_dualitymap()(), device=str(self.device))
         for key in module_vec:
             multi_task_vector[key] = module_vec[key]
-        coefficient = self.optimal_alphas[self.model_name][num_tasks]
 
+        model_name = self.model_name
+        if (
+            model_name in self.optimal_alphas
+            and f"{num_tasks}" in self.optimal_alphas[model_name]
+        ):
+            coefficient = self.optimal_alphas[model_name][f"{num_tasks}"]
+        else:
+            raise ValueError(
+                f"No optimal alpha found for model {model_name} with {num_tasks} tasks"
+            )
+
+        pylogger.info(f"Using alpha: {coefficient}")
         merged_encoder: ImageEncoder = copy.deepcopy(base_model)
 
         merged_encoder = apply_dict_to_model(

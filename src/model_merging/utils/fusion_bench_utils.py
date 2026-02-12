@@ -167,8 +167,6 @@ def get_attr(obj, names: List[str]):
     else:
         return get_attr(getattr(obj, names[0]), names[1:])
 
-        q, k, v, attn_mask, dropout_p, is_causal
-
 
 def _svd(w: Tensor, full_matrices: bool = True) -> Tuple[Tensor, Tensor, Tensor]:
     """

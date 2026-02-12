@@ -1,30 +1,16 @@
 import copy
+import logging
+
+import torch
+
 from model_merging.merger.merger import TaskVectorBasedMerger
 from model_merging.model.encoder import ImageEncoder
 from model_merging.merging.structured import aggregate_decomposed_task_vectors, get_svd_dict
 from model_merging.utils.utils import (
     apply_dict_to_model,
     compute_task_dict,
-    is_matrix,
     print_memory,
 )
-import torch
-import copy
-from hmac import new
-import os
-from typing import Tuple
-
-import torch
-from tqdm import tqdm
-import numpy as np
-from pathlib import Path
-import logging
-import copy
-import os
-import torch
-import logging
-from tqdm import tqdm
-from typing import Tuple
 
 pylogger = logging.getLogger(__name__)
 

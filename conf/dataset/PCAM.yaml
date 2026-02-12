@@ -1,7 +1,7 @@
 _target_: model_merging.data.dataset.load_dataset
 name: PCAM
 ft_epochs: 1
-preprocess_fn: ??
+preprocess_fn: ???
 hf_dataset: 
   _target_: model_merging.data.dataset.load_hf_dataset_filtered
   path: 1aurent/PatchCamelyon

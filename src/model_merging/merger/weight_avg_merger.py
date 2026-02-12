@@ -1,14 +1,9 @@
 import copy
 import logging
-from typing import Dict, List
-import torch
+from typing import Dict
+
 from model_merging.merger.merger import TaskVectorBasedMerger
 from model_merging.model.encoder import ImageEncoder
-from model_merging.utils.utils import (
-    apply_dict_to_model,
-    compute_task_dict,
-    sum_task_dict,
-)
 
 pylogger = logging.getLogger(__name__)
 

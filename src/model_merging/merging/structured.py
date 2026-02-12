@@ -1,29 +1,11 @@
-import copy
-from model_merging.merger.merger import TaskVectorBasedMerger
-from model_merging.model.encoder import ImageEncoder
-from model_merging.utils.utils import (
-    apply_dict_to_model,
-    compute_task_dict,
-    is_matrix,
-    print_memory,
-)
-import torch
-import copy
-from hmac import new
-import os
+import logging
 from typing import Tuple
+from pathlib import Path
 
 import torch
 from tqdm import tqdm
-import numpy as np
-from pathlib import Path
-import logging
-import copy
-import os
-import torch
-import logging
-from tqdm import tqdm
-from typing import Tuple
+
+from model_merging.utils.utils import is_matrix
 
 pylogger = logging.getLogger(__name__)
 
@@ -154,8 +136,6 @@ def aggregate_decomposed_task_vectors(
 
     for layer_name in tqdm(layer_names, desc="Summing SVD"):
         is_matrix = aggregated_model_dict[layer_name].dim() == 2
-        # TODO: modified
-        # new_key = layer_name.replace(".transformer", "")
         new_key = layer_name
         offset = 0
 

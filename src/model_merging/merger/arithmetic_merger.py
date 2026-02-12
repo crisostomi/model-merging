@@ -1,6 +1,6 @@
 import copy
 import logging
-from typing import Dict, List
+from typing import Dict
 import torch
 from model_merging.merger.merger import TaskVectorBasedMerger
 from model_merging.model.encoder import ImageEncoder
@@ -19,6 +19,7 @@ class TaskArithmeticMerger(TaskVectorBasedMerger):
         super().__init__()
 
         self.optimal_alpha = optimal_alpha
+        self.device = torch.device(device)
 
     def merge(
         self, base_model: ImageEncoder, finetuned_models: Dict[str, ImageEncoder]
@@ -26,13 +27,13 @@ class TaskArithmeticMerger(TaskVectorBasedMerger):
 
         comulative_dict = {}
 
-        base_model.cuda()
+        base_model.to(self.device)
 
         datasets = list(finetuned_models.keys())
         pretrained_model = copy.deepcopy(base_model)
 
         for dataset in datasets:
-            finetuned_models[dataset].cuda()
+            finetuned_models[dataset].to(self.device)
             comulative_dict = sum_task_dict(
                 comulative_dict,
                 compute_task_dict(
@@ -40,7 +41,8 @@ class TaskArithmeticMerger(TaskVectorBasedMerger):
                 ),
             )
             del finetuned_models[dataset]  # Delete one model at a time
-            torch.cuda.empty_cache()
+            if self.device.type == "cuda":
+                torch.cuda.empty_cache()
 
         merged_encoder = apply_dict_to_model(
             comulative_dict, pretrained_model, coefficient=self.optimal_alpha

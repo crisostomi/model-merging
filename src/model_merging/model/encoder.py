@@ -58,14 +58,16 @@ class ImageEncoder(torch.nn.Module):
         return self.forward(inputs)
 
     def save(self, filename):
-        print(f"Saving image encoder to {filename}")
+        pylogger.info(f"Saving image encoder to {filename}")
         torch_save(self, filename)
 
     @classmethod
     def load(cls, model_name, filename):
-        print(f"Loading image encoder from {filename}")
+        pylogger.info(f"Loading image encoder from {filename}")
+        encoder = cls(model_name)
         state_dict = torch.load(filename)
-        return cls.load(model_name, state_dict)
+        encoder.load_state_dict(state_dict)
+        return encoder
 
 
 class ClassificationHead(torch.nn.Linear):
@@ -103,10 +105,10 @@ class ClassificationHead(torch.nn.Linear):
         return self.forward(inputs)
 
     def save(self, filename):
-        print(f"Saving classification head to {filename}")
+        pylogger.info(f"Saving classification head to {filename}")
         torch_save(self, filename)
 
     @classmethod
     def load(cls, filename):
-        print(f"Loading classification head from {filename}")
+        pylogger.info(f"Loading classification head from {filename}")
         return torch_load(filename)
