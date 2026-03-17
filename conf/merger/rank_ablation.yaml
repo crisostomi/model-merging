@@ -1,0 +1,3 @@
+_target_: model_merging.merger.rank_ablation_merger.RankAblationMerger
+max_rank_per_task: 8
+non_matrix_params_aggregation: "mean"
