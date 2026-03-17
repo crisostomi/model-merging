@@ -181,11 +181,31 @@ def aggregate_interference_aware(
             u_u, s_u, v_u = torch.linalg.svd(sum_u, full_matrices=False)
             u_v, s_v, v_v = torch.linalg.svd(sum_v, full_matrices=False)
 
-            if use_isotropic:
+            if use_isotropic is True or use_isotropic == "mean":
                 # Replace singular values with their mean (isotropic scaling)
                 iso_factor = torch.mean(sum_s)
                 merged = iso_factor * torch.linalg.multi_dot(
                     (u_u, v_u, u_v, v_v)
+                )
+            elif use_isotropic == "median":
+                iso_factor = torch.median(sum_s)
+                merged = iso_factor * torch.linalg.multi_dot(
+                    (u_u, v_u, u_v, v_v)
+                )
+            elif use_isotropic == "geometric":
+                # Geometric mean of SVs
+                log_mean = torch.mean(torch.log(sum_s + 1e-10))
+                iso_factor = torch.exp(log_mean)
+                merged = iso_factor * torch.linalg.multi_dot(
+                    (u_u, v_u, u_v, v_v)
+                )
+            elif use_isotropic == "topk":
+                # Keep top half of SVs, zero the rest
+                k = max(1, sum_s.shape[0] // 2)
+                topk_s = sum_s.clone()
+                topk_s[k:] = 0.0
+                merged = torch.linalg.multi_dot(
+                    (u_u, v_u, torch.diag(topk_s), u_v, v_v)
                 )
             else:
                 merged = torch.linalg.multi_dot(
