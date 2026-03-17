@@ -1,0 +1,29 @@
+_target_: model_merging.merger.interference_aware_merger.InterferenceAwareMerger
+
+# Per-layer-type SVD rank (number of singular values to retain per task)
+# Based on Phase 1 analysis: MLP/attention need more rank than projection/embedding
+rank_per_type:
+  mlp: 32
+  attention: 32
+  projection: 16
+  conv: 16
+  embedding: 8
+
+default_rank: 32
+
+# Per-layer-type alpha scaling
+# Based on Phase 1: LayerNorm/bias have high agreement (safe to scale up),
+# MLP/attention have low agreement (need careful scaling)
+alpha_per_type:
+  layernorm: 1.0
+  bias: 1.0
+  mlp: 1.0
+  attention: 1.0
+  projection: 1.0
+  conv: 1.0
+  embedding: 1.0
+
+default_alpha: 1.0
+
+# Whether to apply isotropic scaling (replace SVs with mean) after concatenation
+use_isotropic: false
