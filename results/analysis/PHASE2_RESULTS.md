@@ -41,6 +41,24 @@ The InterferenceAwareMerger combines per-layer-type SVD rank allocation with iso
 - This is completely parameter-free: no rank_per_type or compression_factor needed
 - The MP edge naturally gives more rank to layers with more signal (MLP layers with more SVs above noise)
 
+## Follow-up Experiments (Round 2)
+
+| Method | Norm Acc (%) | Notes |
+|--------|-------------|-------|
+| **MP-edge + isotropic** | **93.11** | NEW BEST — parameter-free rank + isotropic |
+| rank64 + isotropic | 92.09 | Too much rank hurts with isotropic! |
+
+### Key Finding: Isotropic scaling works best with aggressive compression
+- rank32 + iso: 92.79%
+- MP-edge + iso: 93.11% (MP selects ~50-100 SVs adaptively)
+- rank64 + iso: 92.09% (WORSE than rank32 + iso!)
+
+This is counterintuitive but makes sense: isotropic scaling replaces all SVs with their mean. With more SVs retained, the mean is pulled down by many small noise SVs, diluting the signal. With fewer SVs (aggressive compression), only the signal SVs survive, and the isotropic mean is higher/cleaner. The MP-edge naturally finds the sweet spot by excluding noise SVs.
+
+SLURM Jobs:
+- 37874516: MP-edge + isotropic → 93.11%
+- 37874519: rank64 + isotropic → 92.09%
+
 ## Next Steps
 
 1. **Validate on N14, N20**: Does the advantage hold with more tasks?
