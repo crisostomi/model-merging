@@ -73,6 +73,23 @@ SLURM Jobs:
 - 37876375: MP-edge + isotropic N20 → 86.06%
 - 37876376: rank32/type + isotropic N20 → 85.83%
 
+## SV Post-Processing Ablation (N8/val, all with MP-edge rank)
+
+| SV Strategy | Norm Acc (%) |
+|-------------|-------------|
+| **Mean (isotropic)** | **93.11** |
+| None (raw SVs) | 92.63 |
+| Geometric mean | 91.80 |
+| Median | 90.80 |
+| Top-k (zero bottom half) | 71.34 |
+
+The isotropic mean is not just "any scalar replacement" — it's specifically the arithmetic mean that works best. Top-k truncation is catastrophic, proving that ALL concatenated SVs carry useful information after Procrustes — the isotropic step works by EQUALIZING them, not by discarding the small ones.
+
+SLURM Jobs:
+- 37880080: median → 90.80%
+- 37880082: geometric → 91.80%
+- 37880084: topk → 71.34%
+
 ## Next Steps
 
 1. **Validate on N14, N20**: Does the advantage hold with more tasks?
