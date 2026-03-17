@@ -59,6 +59,20 @@ SLURM Jobs:
 - 37874516: MP-edge + isotropic → 93.11%
 - 37874519: rank64 + isotropic → 92.09%
 
+## N20 Validation
+
+| Method | N8 val | N20 test | Delta vs N20 baseline |
+|--------|--------|----------|-----------------------|
+| **MP-edge + isotropic** | **93.11** | **86.06** | **+1.76** |
+| rank32/type + isotropic | 92.79 | 85.83 | +1.53 |
+| Previous N20 best | — | 84.30 | — |
+
+The improvement is LARGER on N20 (+1.76) than N8 (+0.54). With more tasks, the MP edge provides more value — it adaptively gives more rank to layers where signal SVs are spread across more dimensions, while aggressively compressing layers where the signal is concentrated.
+
+SLURM Jobs:
+- 37876375: MP-edge + isotropic N20 → 86.06%
+- 37876376: rank32/type + isotropic N20 → 85.83%
+
 ## Next Steps
 
 1. **Validate on N14, N20**: Does the advantage hold with more tasks?
