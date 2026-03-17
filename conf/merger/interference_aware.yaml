@@ -27,3 +27,9 @@ default_alpha: 1.0
 
 # Whether to apply isotropic scaling (replace SVs with mean) after concatenation
 use_isotropic: false
+
+# Marchenko-Pastur edge adaptive rank selection
+# If true, ignores rank_per_type and uses MP edge to determine rank per layer
+use_mp_edge: false
+mp_min_rank: 4    # minimum SVs to retain even if MP says fewer
+mp_max_rank: 128  # maximum SVs to retain even if MP says more

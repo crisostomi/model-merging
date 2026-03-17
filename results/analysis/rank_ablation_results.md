@@ -9,7 +9,7 @@
 | 4             | 79.76       | 72.43       |       |
 | 8             | 83.02       | 75.53       |       |
 | 16            | 85.69       | 77.97       |       |
-| 32            | TBD         | TBD         | Rate-limited, resubmitted |
+| 32            | 89.97       | ~81.6       | Resubmitted after rate limit |
 | 64            | 92.58       | 83.86       |       |
 | TSV default   | 92.57       | 82.07       | cf=8, effective rank~96 |
 | Iso-CTS       | 91.00       | 82.07       |       |

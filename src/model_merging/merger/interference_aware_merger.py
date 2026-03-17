@@ -50,8 +50,29 @@ def classify_layer_type(layer_name: str) -> str:
     return "other"
 
 
+def compute_mp_edge(matrix: torch.Tensor) -> float:
+    """Compute the Marchenko-Pastur upper edge for a matrix.
+
+    The MP law predicts that eigenvalues of the sample covariance of a random
+    matrix with i.i.d. entries of variance sigma^2 lie in
+    [sigma^2*(1-sqrt(gamma))^2, sigma^2*(1+sqrt(gamma))^2] where gamma = m/n.
+
+    Singular values above sqrt(lambda_plus * n) carry signal.
+    """
+    m, n = matrix.shape
+    gamma = m / n if m >= n else n / m
+    sigma2 = float(matrix.var())
+    lambda_plus = sigma2 * (1 + gamma**0.5) ** 2
+    # Convert eigenvalue threshold to singular value threshold
+    sv_threshold = (lambda_plus * min(m, n)) ** 0.5
+    return sv_threshold
+
+
 @torch.no_grad()
-def decompose_with_layer_ranks(task_dicts, rank_per_type: dict, default_rank: int):
+def decompose_with_layer_ranks(
+    task_dicts, rank_per_type: dict, default_rank: int, use_mp_edge: bool = False,
+    mp_min_rank: int = 4, mp_max_rank: int = 128,
+):
     """
     SVD decomposition with per-layer-type rank allocation.
 
@@ -59,6 +80,9 @@ def decompose_with_layer_ranks(task_dicts, rank_per_type: dict, default_rank: in
         task_dicts: {dataset: {layer_name: tensor}}
         rank_per_type: {layer_type: max_rank} e.g. {"mlp": 32, "attention": 16}
         default_rank: fallback rank for layer types not in rank_per_type
+        use_mp_edge: if True, use Marchenko-Pastur edge to determine rank adaptively
+        mp_min_rank: minimum rank when using MP edge
+        mp_max_rank: maximum rank when using MP edge
     """
     svd_dict = {}
 
@@ -70,10 +94,16 @@ def decompose_with_layer_ranks(task_dicts, rank_per_type: dict, default_rank: in
         for key, layer in task_dict.items():
             if is_matrix(layer):
                 layer_type = classify_layer_type(key)
-                max_rank = rank_per_type.get(layer_type, default_rank)
-
                 U, S, V = torch.linalg.svd(layer.float(), full_matrices=False)
-                k = min(max_rank, S.shape[0])
+
+                if use_mp_edge:
+                    # Adaptive rank: keep SVs above the MP noise edge
+                    threshold = compute_mp_edge(layer.float())
+                    k = int((S > threshold).sum().item())
+                    k = max(mp_min_rank, min(mp_max_rank, k))
+                else:
+                    max_rank = rank_per_type.get(layer_type, default_rank)
+                    k = min(max_rank, S.shape[0])
 
                 svd_dict[dataset][key] = {
                     "u": U[:, :k].detach().cpu(),
@@ -203,6 +233,9 @@ class InterferenceAwareMerger(TaskVectorBasedMerger):
         alpha_per_type: dict = None,
         default_alpha: float = 1.0,
         use_isotropic: bool = False,
+        use_mp_edge: bool = False,
+        mp_min_rank: int = 4,
+        mp_max_rank: int = 128,
     ):
         super().__init__()
 
@@ -211,6 +244,9 @@ class InterferenceAwareMerger(TaskVectorBasedMerger):
         self.alpha_per_type = alpha_per_type or {}
         self.default_alpha = default_alpha
         self.use_isotropic = use_isotropic
+        self.use_mp_edge = use_mp_edge
+        self.mp_min_rank = mp_min_rank
+        self.mp_max_rank = mp_max_rank
 
     def merge(self, base_model, finetuned_models):
         task_dicts = {}
@@ -230,7 +266,10 @@ class InterferenceAwareMerger(TaskVectorBasedMerger):
             f"default_rank={self.default_rank}"
         )
         svd_dict = decompose_with_layer_ranks(
-            task_dicts, self.rank_per_type, self.default_rank
+            task_dicts, self.rank_per_type, self.default_rank,
+            use_mp_edge=self.use_mp_edge,
+            mp_min_rank=self.mp_min_rank,
+            mp_max_rank=self.mp_max_rank,
         )
 
         pylogger.info(
