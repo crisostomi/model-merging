@@ -112,7 +112,7 @@ def extract_features(model, images, device, batch_size=256):
 def train_linear_probe(train_features, train_labels, C=0.316):
     """Train logistic regression. C=0.316 (sqrt(0.1)) is a common CLIP probe default."""
     train_norm = normalize(train_features, norm="l2")
-    clf = LogisticRegression(max_iter=1000, C=C, solver="lbfgs", multi_class="multinomial", n_jobs=-1)
+    clf = LogisticRegression(max_iter=1000, C=C, solver="lbfgs", n_jobs=-1)
     clf.fit(train_norm, train_labels)
     train_acc = clf.score(train_norm, train_labels)
     logger.info(f"  Probe train acc: {train_acc:.4f}")
