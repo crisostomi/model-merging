@@ -1,0 +1,26 @@
+# Late blocks (9-11) get 3x more SVs + no isotropic
+# Early blocks (0-8) use MP-edge + isotropic as before
+_target_: model_merging.merger.interference_aware_merger.InterferenceAwareMerger
+
+rank_per_type: {}
+default_rank: 32
+
+alpha_per_type:
+  layernorm: 1.0
+  bias: 1.0
+  mlp: 1.0
+  attention: 1.0
+  projection: 1.0
+  conv: 1.0
+  embedding: 1.0
+
+default_alpha: 1.0
+use_isotropic: true
+use_mp_edge: true
+mp_min_rank: 4
+mp_max_rank: 128
+
+# Layer-specific: blocks >= 9 get 3x rank + no isotropic
+late_block_threshold: 9
+late_block_rank_multiplier: 3.0
+late_block_isotropic: false

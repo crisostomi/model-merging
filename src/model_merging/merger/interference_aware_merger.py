@@ -31,6 +31,13 @@ from model_merging.utils.utils import (
 pylogger = logging.getLogger(__name__)
 
 
+def get_block_index(layer_name: str) -> int:
+    """Extract transformer block index from a layer name. Returns -1 if not in a resblock."""
+    import re
+    match = re.search(r"resblocks\.(\d+)\.", layer_name)
+    return int(match.group(1)) if match else -1
+
+
 def classify_layer_type(layer_name: str) -> str:
     """Classify layer for rank/alpha allocation."""
     if "ln" in layer_name or "norm" in layer_name:
@@ -72,6 +79,7 @@ def compute_mp_edge(matrix: torch.Tensor) -> float:
 def decompose_with_layer_ranks(
     task_dicts, rank_per_type: dict, default_rank: int, use_mp_edge: bool = False,
     mp_min_rank: int = 4, mp_max_rank: int = 128,
+    late_block_threshold: int = -1, late_block_rank_multiplier: float = 1.0,
 ):
     """
     SVD decomposition with per-layer-type rank allocation.
@@ -105,6 +113,11 @@ def decompose_with_layer_ranks(
                     max_rank = rank_per_type.get(layer_type, default_rank)
                     k = min(max_rank, S.shape[0])
 
+                # Apply rank multiplier for late blocks
+                block_idx = get_block_index(key)
+                if late_block_threshold >= 0 and block_idx >= late_block_threshold:
+                    k = min(int(k * late_block_rank_multiplier), S.shape[0])
+
                 svd_dict[dataset][key] = {
                     "u": U[:, :k].detach().cpu(),
                     "s": S[:k].detach().cpu(),
@@ -124,6 +137,8 @@ def aggregate_interference_aware(
     default_alpha: float = 1.0,
     use_isotropic: bool = False,
     alpha_per_task: dict = None,
+    late_block_threshold: int = -1,
+    late_block_isotropic: bool = None,
     device="cuda",
 ):
     """
@@ -154,6 +169,12 @@ def aggregate_interference_aware(
             continue
 
         if is_mat:
+            # Determine isotropic setting for this layer
+            block_idx = get_block_index(layer_name)
+            layer_isotropic = use_isotropic
+            if late_block_threshold >= 0 and block_idx >= late_block_threshold and late_block_isotropic is not None:
+                layer_isotropic = late_block_isotropic
+
             # TSV-style concatenation
             offset = 0
             for i, dataset in enumerate(datasets):
@@ -189,25 +210,25 @@ def aggregate_interference_aware(
             u_u, s_u, v_u = torch.linalg.svd(sum_u, full_matrices=False)
             u_v, s_v, v_v = torch.linalg.svd(sum_v, full_matrices=False)
 
-            if use_isotropic is True or use_isotropic == "mean":
+            if layer_isotropic is True or layer_isotropic == "mean":
                 # Replace singular values with their mean (isotropic scaling)
                 iso_factor = torch.mean(sum_s)
                 merged = iso_factor * torch.linalg.multi_dot(
                     (u_u, v_u, u_v, v_v)
                 )
-            elif use_isotropic == "median":
+            elif layer_isotropic == "median":
                 iso_factor = torch.median(sum_s)
                 merged = iso_factor * torch.linalg.multi_dot(
                     (u_u, v_u, u_v, v_v)
                 )
-            elif use_isotropic == "geometric":
+            elif layer_isotropic == "geometric":
                 # Geometric mean of SVs
                 log_mean = torch.mean(torch.log(sum_s + 1e-10))
                 iso_factor = torch.exp(log_mean)
                 merged = iso_factor * torch.linalg.multi_dot(
                     (u_u, v_u, u_v, v_v)
                 )
-            elif use_isotropic == "topk":
+            elif layer_isotropic == "topk":
                 # Keep top half of SVs, zero the rest
                 k = max(1, sum_s.shape[0] // 2)
                 topk_s = sum_s.clone()
@@ -275,6 +296,9 @@ class InterferenceAwareMerger(TaskVectorBasedMerger):
         mp_max_rank: int = 128,
         normalize_task_vectors: bool = False,
         alpha_per_task: dict = None,
+        late_block_threshold: int = -1,
+        late_block_rank_multiplier: float = 1.0,
+        late_block_isotropic: bool = None,
     ):
         super().__init__()
 
@@ -288,6 +312,9 @@ class InterferenceAwareMerger(TaskVectorBasedMerger):
         self.mp_max_rank = mp_max_rank
         self.normalize_task_vectors = normalize_task_vectors
         self.alpha_per_task = alpha_per_task or {}
+        self.late_block_threshold = late_block_threshold
+        self.late_block_rank_multiplier = late_block_rank_multiplier
+        self.late_block_isotropic = late_block_isotropic
 
     def merge(self, base_model, finetuned_models):
         task_dicts = {}
@@ -331,11 +358,18 @@ class InterferenceAwareMerger(TaskVectorBasedMerger):
             f"Interference-aware decomposition: rank_per_type={self.rank_per_type}, "
             f"default_rank={self.default_rank}"
         )
+        if self.late_block_threshold >= 0:
+            pylogger.info(
+                f"Late block config: threshold={self.late_block_threshold}, "
+                f"rank_mult={self.late_block_rank_multiplier}, isotropic={self.late_block_isotropic}"
+            )
         svd_dict = decompose_with_layer_ranks(
             task_dicts, self.rank_per_type, self.default_rank,
             use_mp_edge=self.use_mp_edge,
             mp_min_rank=self.mp_min_rank,
             mp_max_rank=self.mp_max_rank,
+            late_block_threshold=self.late_block_threshold,
+            late_block_rank_multiplier=self.late_block_rank_multiplier,
         )
 
         pylogger.info(
@@ -351,6 +385,8 @@ class InterferenceAwareMerger(TaskVectorBasedMerger):
             default_alpha=self.default_alpha,
             use_isotropic=self.use_isotropic,
             alpha_per_task=self.alpha_per_task,
+            late_block_threshold=self.late_block_threshold,
+            late_block_isotropic=self.late_block_isotropic,
         )
 
         merged_encoder: ImageEncoder = copy.deepcopy(base_model)
