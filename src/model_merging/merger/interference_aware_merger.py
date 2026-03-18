@@ -123,6 +123,7 @@ def aggregate_interference_aware(
     alpha_per_type: dict,
     default_alpha: float = 1.0,
     use_isotropic: bool = False,
+    alpha_per_task: dict = None,
     device="cuda",
 ):
     """
@@ -137,6 +138,7 @@ def aggregate_interference_aware(
         alpha_per_type: {layer_type: alpha} for per-type scaling
         default_alpha: fallback alpha
         use_isotropic: if True, replace SVs with their mean after concatenation
+        alpha_per_task: {dataset_name: alpha} for per-task scaling (applied to SVs before concatenation)
         device: compute device
     """
     aggregated = ref_state_dict
@@ -172,8 +174,14 @@ def aggregate_interference_aware(
                     sum_v = torch.zeros(total_rank, v.shape[1], device=device)
 
                 rank_i = s.shape[0]
+                # Apply per-task alpha to singular values before concatenation
+                task_alpha = 1.0
+                if alpha_per_task:
+                    # Match dataset by name (dataset objects have .name attribute)
+                    ds_name = dataset.name if hasattr(dataset, 'name') else str(dataset)
+                    task_alpha = alpha_per_task.get(ds_name, 1.0)
                 sum_u[:, offset : offset + rank_i] = u
-                sum_s[offset : offset + rank_i] = s
+                sum_s[offset : offset + rank_i] = s * task_alpha
                 sum_v[offset : offset + rank_i, :] = v
                 offset += rank_i
 
@@ -216,15 +224,24 @@ def aggregate_interference_aware(
             aggregated[layer_name] = (alpha * merged).to(device)
 
         else:
-            # 1D params: weighted average across tasks
+            # 1D params: weighted average across tasks (with optional per-task alpha)
+            total_weight = 0.0
             for i, dataset in enumerate(datasets):
                 delta = decomposed_task_vectors[dataset][layer_name]["dim1"].to(device)
+                task_alpha = 1.0
+                if alpha_per_task:
+                    ds_name = dataset.name if hasattr(dataset, 'name') else str(dataset)
+                    task_alpha = alpha_per_task.get(ds_name, 1.0)
                 if i == 0:
-                    aggregated[layer_name] = delta.clone()
+                    aggregated[layer_name] = delta.clone() * task_alpha
+                    total_weight = task_alpha
                 else:
-                    aggregated[layer_name] += (
-                        delta - aggregated[layer_name]
-                    ) / (i + 1)
+                    aggregated[layer_name] += delta * task_alpha
+                    total_weight += task_alpha
+
+            # Normalize by total weight to get weighted average
+            if total_weight > 0:
+                aggregated[layer_name] = aggregated[layer_name] / total_weight
 
             # Apply per-layer-type alpha
             aggregated[layer_name] = alpha * aggregated[layer_name]
@@ -257,6 +274,7 @@ class InterferenceAwareMerger(TaskVectorBasedMerger):
         mp_min_rank: int = 4,
         mp_max_rank: int = 128,
         normalize_task_vectors: bool = False,
+        alpha_per_task: dict = None,
     ):
         super().__init__()
 
@@ -269,6 +287,7 @@ class InterferenceAwareMerger(TaskVectorBasedMerger):
         self.mp_min_rank = mp_min_rank
         self.mp_max_rank = mp_max_rank
         self.normalize_task_vectors = normalize_task_vectors
+        self.alpha_per_task = alpha_per_task or {}
 
     def merge(self, base_model, finetuned_models):
         task_dicts = {}
@@ -323,12 +342,15 @@ class InterferenceAwareMerger(TaskVectorBasedMerger):
             f"Aggregating: alpha_per_type={self.alpha_per_type}, "
             f"default_alpha={self.default_alpha}, isotropic={self.use_isotropic}"
         )
+        if self.alpha_per_task:
+            pylogger.info(f"Using per-task alpha: {self.alpha_per_task}")
         multi_task_vector = aggregate_interference_aware(
             ref_state_dict=copy.deepcopy(base_model.state_dict()),
             decomposed_task_vectors=svd_dict,
             alpha_per_type=self.alpha_per_type,
             default_alpha=self.default_alpha,
             use_isotropic=self.use_isotropic,
+            alpha_per_task=self.alpha_per_task,
         )
 
         merged_encoder: ImageEncoder = copy.deepcopy(base_model)
