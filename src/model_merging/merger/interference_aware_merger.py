@@ -256,6 +256,7 @@ class InterferenceAwareMerger(TaskVectorBasedMerger):
         use_mp_edge: bool = False,
         mp_min_rank: int = 4,
         mp_max_rank: int = 128,
+        normalize_task_vectors: bool = False,
     ):
         super().__init__()
 
@@ -267,6 +268,7 @@ class InterferenceAwareMerger(TaskVectorBasedMerger):
         self.use_mp_edge = use_mp_edge
         self.mp_min_rank = mp_min_rank
         self.mp_max_rank = mp_max_rank
+        self.normalize_task_vectors = normalize_task_vectors
 
     def merge(self, base_model, finetuned_models):
         task_dicts = {}
@@ -280,6 +282,31 @@ class InterferenceAwareMerger(TaskVectorBasedMerger):
             torch.cuda.empty_cache()
 
         print_memory("after computing task dicts")
+
+        if self.normalize_task_vectors:
+            # Normalize each task vector per-layer to have the same Frobenius norm.
+            # Use the geometric mean of norms as the target (preserves overall scale).
+            for key in list(task_dicts[datasets[0]].keys()):
+                norms = []
+                for dataset in datasets:
+                    norm = task_dicts[dataset][key].float().norm().item()
+                    norms.append(norm)
+
+                # Skip layers where all tasks have zero change
+                if all(n < 1e-10 for n in norms):
+                    continue
+
+                # Target norm = geometric mean of non-zero norms
+                nonzero_norms = [n for n in norms if n > 1e-10]
+                if not nonzero_norms:
+                    continue
+                target_norm = float(torch.tensor(nonzero_norms).log().mean().exp())
+
+                for i, dataset in enumerate(datasets):
+                    if norms[i] > 1e-10:
+                        task_dicts[dataset][key] = task_dicts[dataset][key] * (target_norm / norms[i])
+
+            pylogger.info("Normalized task vectors to geometric mean norm per layer")
 
         pylogger.info(
             f"Interference-aware decomposition: rank_per_type={self.rank_per_type}, "
