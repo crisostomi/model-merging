@@ -75,17 +75,17 @@ def create_merged_model(datasets, model_name=MODEL_NAME):
 # --------------------------------------------------------------------------- #
 
 class ExpandedMLP(nn.Module):
-    """MLP with function-preserving 2x expansion.
+    """MLP with function-preserving 2x expansion using separate modules for G-Freeze.
 
-    Original: x -> c_fc -> gelu -> c_proj -> out
-    Expanded: x -> [c_fc | c_fc] -> gelu -> [½c_proj; ½c_proj] -> out
+    Structure: x -> [c_fc_orig; c_fc_new] -> gelu -> c_proj_orig(orig_half) + c_proj_new(new_half) -> out
 
-    At initialization, produces IDENTICAL outputs to the original MLP.
+    The original and new halves are SEPARATE modules so we can freeze originals
+    while training only the new copies. At initialization, produces IDENTICAL
+    outputs to the original MLP.
     """
 
     def __init__(self, original_mlp):
         super().__init__()
-        # Extract original weights
         c_fc_w = original_mlp.c_fc.weight.data      # (3072, 768)
         c_fc_b = original_mlp.c_fc.bias.data         # (3072,)
         c_proj_w = original_mlp.c_proj.weight.data   # (768, 3072)
@@ -95,30 +95,44 @@ class ExpandedMLP(nn.Module):
         input_dim = c_fc_w.shape[1]   # 768
         output_dim = c_proj_w.shape[0] # 768
 
-        # Expanded up-projection: [W | W] -> doubles hidden dim
-        self.c_fc = nn.Linear(input_dim, hidden_dim * 2)
-        self.c_fc.weight.data = torch.cat([c_fc_w, c_fc_w], dim=0)
-        self.c_fc.bias.data = torch.cat([c_fc_b, c_fc_b], dim=0)
+        # Original up-projection (FROZEN)
+        self.c_fc_orig = nn.Linear(input_dim, hidden_dim)
+        self.c_fc_orig.weight.data = c_fc_w.clone()
+        self.c_fc_orig.bias.data = c_fc_b.clone()
 
-        # Copy the activation function
+        # New up-projection (TRAINABLE) — starts as copy of original
+        self.c_fc_new = nn.Linear(input_dim, hidden_dim)
+        self.c_fc_new.weight.data = c_fc_w.clone()
+        self.c_fc_new.bias.data = c_fc_b.clone()
+
         self.gelu = copy.deepcopy(original_mlp.gelu)
-        # Copy ln if it exists (it's Identity in ViT-B-32 but keep for safety)
         self.ln = copy.deepcopy(original_mlp.ln) if hasattr(original_mlp, 'ln') else nn.Identity()
 
-        # Expanded down-projection: [½W; ½W] -> same output dim
-        self.c_proj = nn.Linear(hidden_dim * 2, output_dim)
-        self.c_proj.weight.data = torch.cat([0.5 * c_proj_w, 0.5 * c_proj_w], dim=1)
-        self.c_proj.bias.data = c_proj_b.clone()  # bias unchanged
+        # Original down-projection (FROZEN) — scaled by ½
+        self.c_proj_orig = nn.Linear(hidden_dim, output_dim, bias=True)
+        self.c_proj_orig.weight.data = 0.5 * c_proj_w.clone()
+        self.c_proj_orig.bias.data = c_proj_b.clone()  # full bias on orig
 
-        # Track which params are "original" vs "new" for G-Freeze
+        # New down-projection (TRAINABLE) — scaled by ½, no bias
+        self.c_proj_new = nn.Linear(hidden_dim, output_dim, bias=False)
+        self.c_proj_new.weight.data = 0.5 * c_proj_w.clone()
+
         self.hidden_dim = hidden_dim
         self.expanded = True
 
     def forward(self, x):
-        x = self.c_fc(x)
-        x = self.gelu(x)
-        x = self.c_proj(x)
-        return x
+        # Up-projection: both halves process the same input
+        h_orig = self.c_fc_orig(x)
+        h_new = self.c_fc_new(x)
+
+        # Activation on each half separately
+        h_orig = self.gelu(h_orig)
+        h_new = self.gelu(h_new)
+
+        # Down-projection: sum of both halves
+        # At init: 0.5 * W @ gelu(W @ x) + 0.5 * W @ gelu(W @ x) = W @ gelu(W @ x)
+        out = self.c_proj_orig(h_orig) + self.c_proj_new(h_new)
+        return out
 
 
 def expand_late_blocks(encoder, block_indices=(9, 10, 11)):
@@ -129,21 +143,17 @@ def expand_late_blocks(encoder, block_indices=(9, 10, 11)):
         original_mlp = block.mlp
         expanded_mlp = ExpandedMLP(original_mlp)
         block.mlp = expanded_mlp
-        logger.info(f"  Expanded block {idx} MLP: {original_mlp.c_fc.weight.shape[0]} -> {expanded_mlp.c_fc.weight.shape[0]} hidden dim")
+        logger.info(f"  Expanded block {idx} MLP: {original_mlp.c_fc.weight.shape[0]}d -> 2x{expanded_mlp.hidden_dim}d (separate orig/new modules)")
     return encoder
 
 
 def setup_gfreeze(encoder, block_indices=(9, 10, 11)):
-    """Freeze all parameters except the 'new' half of expanded MLPs.
-
-    G-Freeze strategy: only the duplicated (new) parameters train.
-    Original parameters stay frozen to preserve merged knowledge.
-    """
-    # First freeze everything
+    """Freeze all parameters except the 'new' modules in expanded MLPs."""
+    # Freeze everything
     for param in encoder.parameters():
         param.requires_grad = False
 
-    # Unfreeze the second half of expanded c_fc and the second half cols of c_proj
+    # Unfreeze only the NEW modules
     visual = encoder.model.visual
     trainable_count = 0
     for idx in block_indices:
@@ -152,16 +162,12 @@ def setup_gfreeze(encoder, block_indices=(9, 10, 11)):
         if not hasattr(mlp, 'expanded'):
             continue
 
-        h = mlp.hidden_dim  # original hidden dim
-
-        # c_fc: unfreeze rows h: (the "new" copy)
-        mlp.c_fc.weight.requires_grad = True
-        mlp.c_fc.bias.requires_grad = True
-        trainable_count += mlp.c_fc.weight.numel() + mlp.c_fc.bias.numel()
-
-        # c_proj: unfreeze cols h: (the "new" copy)
-        mlp.c_proj.weight.requires_grad = True
-        trainable_count += mlp.c_proj.weight.numel()
+        for param in mlp.c_fc_new.parameters():
+            param.requires_grad = True
+            trainable_count += param.numel()
+        for param in mlp.c_proj_new.parameters():
+            param.requires_grad = True
+            trainable_count += param.numel()
 
     total = sum(p.numel() for p in encoder.parameters())
     logger.info(f"  G-Freeze: {trainable_count:,} trainable / {total:,} total ({trainable_count/total*100:.1f}%)")
