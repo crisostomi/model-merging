@@ -124,6 +124,23 @@ Key files: `scripts/analyze_leave_one_out.py`, `conf/benchmark/N8_no_*.yaml`. Re
 - **Magnitude normalization** hurts performance (-0.43 pts avg, SVHN -1.51 pts). Magnitude differences are informative, not artifacts.
 - **Per-task alpha** (LOO-guided weights) hurts performance (mild -0.20, strong -0.51). Procrustes already orthogonalizes — scaling just weakens all signals uniformly.
 
+### Activation Space Analysis (Session 3, COMPLETE)
+**Tag**: `flywheel/activation-analysis` · **Files**: `scripts/analyze_activations.py`
+
+Compared intermediate activations (CLS token, 12 transformer blocks) of 4 models on SVHN/EuroSAT data: pretrained, SVHN-FT, merged-all-8, merged-no-EuroSAT.
+
+**Key findings:**
+1. **Interference is boundary shift, NOT representational corruption**: CKA stays >0.95 between merged-all-8 and merged-no-EuroSAT at ALL layers. The merged model preserves SVHN representation structure.
+2. **Block 11 is the amplification layer**: L2 shift accumulates gradually (2-10% in blocks 0-10) then spikes 2.3x to 25% at block 11. The final block is where the interference concentrates.
+3. **Stunning asymmetry**: Removing EuroSAT changes EuroSAT's own representations (CKA=0.82 at output) far more than SVHN's (CKA=0.96). Asymmetry reverses at block 9 — EuroSAT occupies task-specific capacity in late layers.
+4. **Merging is a capacity problem**: Both merged models have only ~53% cosine similarity to SVHN-FT at block 11. EuroSAT explains only 4% of this 47% gap. The core issue is 8 tasks competing for fixed-capacity representation space.
+5. **Non-uniform disruption**: Cosine histogram at block 11 shows a long tail to 0.84 — some SVHN samples are 3-4x more affected than average.
+
+### Linear Probe Analysis (Session 3, IN PROGRESS)
+**Files**: `scripts/analyze_linear_probe.py`
+
+Tests whether SVHN-discriminative information is preserved but rotated in merged representations by training fresh linear classifiers on extracted features.
+
 ### Infrastructure
 - `slurm/launch_merging_eval.slurm`, `slurm/launch_analysis.slurm` — SLURM scripts
 - `src/model_merging/merger/rank_ablation_merger.py` — rank ablation tool
@@ -137,16 +154,15 @@ Key files: `scripts/analyze_leave_one_out.py`, `conf/benchmark/N8_no_*.yaml`. Re
 
 ## What To Do Next
 
-The critical open question from Session 2: **Through what mechanism does EuroSAT hurt SVHN if their weight matrices are nearly orthogonal?** Weight-space geometric measures have hit a ceiling. The path forward requires moving to representation/activation-level analysis, or finding fundamentally new approaches.
+Session 3 answered the mechanism question: **EuroSAT interferes via classifier boundary shift, NOT representational corruption.** CKA >0.95 at all layers. The effect concentrates at block 11 (25% L2 shift). Both merged models are ~53% cosine-similar to SVHN-FT — the core problem is representation capacity, not pairwise interference.
 
-### Priority 1: Representation-Level Analysis
+### Priority 1: Classifier Re-alignment (IN PROGRESS)
 
-Weight-space analysis is exhausted — we need to understand what happens in activation space.
+The activation analysis shows representations are preserved but rotated. The linear probe experiment (scripts/analyze_linear_probe.py) tests this directly. If the probe recovers high accuracy, develop classifier re-alignment techniques:
 
-- **CKA/CCA analysis**: Compare internal representations of the merged model vs. individual fine-tuned models vs. the pretrained model. At which layers does the merged model diverge from each fine-tuned model? Use `torch.nn.functional` hooks to extract intermediate activations on a small subset of each task's data. Focus on EuroSAT and SVHN specifically.
-- **Activation statistics**: How does adding EuroSAT change intermediate activations on SVHN data? Compare mean, variance, kurtosis of layer activations between the all-8 merged model and the no-EuroSAT merged model, when processing SVHN inputs.
-- **Task-specific probing**: Does the merged model's representation still encode SVHN-relevant features? Train linear probes on intermediate layers.
-- **Feature space visualization**: Run t-SNE/UMAP on penultimate-layer embeddings of the merged model for samples from all 8 tasks. Compare with pretrained and fine-tuned embedding spaces.
+- **Linear probe results** (awaiting): If merged model probe >> original head → information preserved, focus on alignment
+- **Per-task classifier fine-tuning**: After merging, fine-tune each task's classification head on a small amount of task data using the merged encoder (frozen)
+- **Procrustes alignment of classification heads**: Align the original classification heads to the merged representation space via learned rotation
 
 ### Priority 2: Challenging the Pipeline
 
