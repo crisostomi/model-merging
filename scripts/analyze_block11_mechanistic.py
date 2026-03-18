@@ -8,13 +8,11 @@ build gradually (93.2% at block 9 -> 96.7% at block 11).
 
 This script dissects block 11 to answer:
   - Is it the attention heads or MLP (or both) that create task-relevant features?
-  - Which of the 12 attention heads are most task-relevant?
 
 Hooks:
   1. Block 10 output (input to block 11)
   2. After attention + residual (before MLP)
   3. After full block 11 (attention + MLP + residuals)
-  4. Per-head: 12 heads x 64d each, extracted from attn.out_proj input
 
 For each hook point, a linear probe (LogisticRegression) is trained on SVHN
 train data and evaluated on SVHN test data.
@@ -22,7 +20,6 @@ train data and evaluated on SVHN test data.
 Outputs (results/activation_analysis/):
   - block11_mechanistic.json          — all probe accuracies
   - block11_subcomponent_probes.png   — bar chart: block_10 -> +attn -> +MLP
-  - block11_head_heatmap.png          — per-head probe accuracy heatmap
 
 Usage:
     sbatch slurm/launch_analysis.slurm scripts/analyze_block11_mechanistic.py
@@ -32,7 +29,6 @@ Usage:
 import argparse
 import json
 import logging
-import os
 import sys
 from collections import defaultdict
 from pathlib import Path
@@ -62,9 +58,6 @@ MODEL_NAME = "ViT-B-32"
 N8_DATASETS = ["SUN397", "Cars", "RESISC45", "EuroSAT", "SVHN", "GTSRB", "MNIST", "DTD"]
 OUTPUT_DIR = PROJECT_ROOT / "results" / "activation_analysis"
 BATCH_SIZE = 64
-NUM_HEADS = 12
-HEAD_DIM = 64
-HIDDEN_DIM = 768  # NUM_HEADS * HEAD_DIM
 BLOCK_IDX = 11  # The block we are dissecting
 
 
@@ -143,10 +136,8 @@ def register_block11_hooks(model):
 
     Hook points (all CLS-token, seq-first format):
         block_10_out   : output of block 10 = input to block 11
-        block_11_post_attn : block_10_out + attn(ln_1(block_10_out))
         block_11_out   : full block 11 output (post-MLP + residual)
-        attn_out_proj_input : concatenated head outputs before out_proj
-                              shape (seq_len, batch, 768) = 12 heads x 64d
+        attn_output    : raw attention output before residual addition
     """
     activations = {}
     handles = []
@@ -181,15 +172,6 @@ def register_block11_hooks(model):
         activations["attn_output"] = attn_output.detach().cpu()  # (seq, batch, hidden)
     handles.append(block11.attn.register_forward_hook(mha_hook))
 
-    # 4. Per-head outputs: hook into attn.out_proj to capture its input.
-    #    The forward hook receives (module, input, output). The input to out_proj
-    #    is the concatenated head outputs: shape (seq_len * batch, hidden_dim) or
-    #    (seq_len, batch, hidden_dim) depending on PyTorch MHA internals.
-    def out_proj_fwd_hook(module, input, output):
-        inp = input[0] if isinstance(input, tuple) else input
-        activations["out_proj_input"] = inp.detach().cpu()
-    handles.append(block11.attn.out_proj.register_forward_hook(out_proj_fwd_hook))
-
     return activations, handles
 
 
@@ -201,7 +183,6 @@ def extract_block11_activations(model, images, device, batch_size=BATCH_SIZE):
         block_10_out        : (n_samples, 768) CLS token after block 10
         block_11_post_attn  : (n_samples, 768) CLS token after attention+residual
         block_11_out        : (n_samples, 768) CLS token after full block 11
-        head_outputs        : (n_samples, 12, 64) per-head CLS outputs
     """
     model.eval()
     model.to(device)
@@ -227,29 +208,6 @@ def extract_block11_activations(model, images, device, batch_size=BATCH_SIZE):
         post_attn = block10[0] + attn_out[0]  # (batch, hidden)
         collectors["block_11_post_attn"].append(post_attn.clone())
 
-        # --- Per-head outputs ---
-        # out_proj_input comes from inside nn.MultiheadAttention.
-        # In PyTorch's MHA with batch_first=False, the internal flow is:
-        #   Q, K, V projected -> scaled_dot_product_attention -> reshape -> out_proj
-        # The input to out_proj is (seq_len, batch, hidden_dim) after the heads
-        # are concatenated back. But in some PyTorch versions, it may be flattened
-        # to (seq_len * batch, hidden_dim). Let's handle both cases.
-        out_proj_inp = activations_dict["out_proj_input"]
-        bsz = batch.shape[0]
-
-        if out_proj_inp.dim() == 2:
-            # Flattened: (seq_len * batch, hidden_dim)
-            # We need CLS token = every `seq_len`-th sample starting at 0.
-            seq_len = out_proj_inp.shape[0] // bsz
-            # Reshape to (seq_len, batch, hidden)
-            out_proj_inp = out_proj_inp.view(seq_len, bsz, HIDDEN_DIM)
-
-        # Now (seq_len, batch, hidden); take CLS at index 0
-        head_concat_cls = out_proj_inp[0]  # (batch, 768)
-        # Split into 12 heads x 64d
-        per_head = head_concat_cls.view(bsz, NUM_HEADS, HEAD_DIM)  # (batch, 12, 64)
-        collectors["head_outputs"].append(per_head.clone())
-
         activations_dict.clear()
 
     for h in handles:
@@ -260,7 +218,6 @@ def extract_block11_activations(model, images, device, batch_size=BATCH_SIZE):
     result = {}
     for key in ["block_10_out", "block_11_post_attn", "block_11_out"]:
         result[key] = torch.cat(collectors[key], dim=0).float()  # (n, 768)
-    result["head_outputs"] = torch.cat(collectors["head_outputs"], dim=0).float()  # (n, 12, 64)
 
     return result
 
@@ -298,17 +255,6 @@ def run_probes(train_acts, test_acts, train_labels, test_labels, model_name):
         acc = evaluate_probe(clf, test_feat, test_labels)
         results[key] = float(acc)
         logger.info(f"    -> {acc:.4f}")
-
-    # Per-head probes (64d each)
-    head_accs = []
-    for h in range(NUM_HEADS):
-        train_head = train_acts["head_outputs"][:, h, :].numpy()  # (n, 64)
-        test_head = test_acts["head_outputs"][:, h, :].numpy()
-        clf = train_linear_probe(train_head, train_labels)
-        acc = evaluate_probe(clf, test_head, test_labels)
-        head_accs.append(float(acc))
-        logger.info(f"  [{model_name}] Head {h:2d}: {acc:.4f}")
-    results["per_head"] = head_accs
 
     return results
 
@@ -398,78 +344,6 @@ def plot_subcomponent_bars(all_results, output_dir):
     plt.close()
     logger.info(f"  Saved: {path}")
 
-
-def plot_head_heatmap(all_results, output_dir):
-    """Per-head probe accuracy heatmap: models x heads."""
-    models = list(all_results.keys())
-    n_models = len(models)
-
-    matrix = np.zeros((n_models, NUM_HEADS))
-    for i, model in enumerate(models):
-        matrix[i, :] = all_results[model]["per_head"]
-
-    fig, ax = plt.subplots(figsize=(12, 4))
-    im = ax.imshow(matrix, aspect="auto", cmap="YlOrRd", vmin=0.1, vmax=1.0)
-
-    # Annotate cells
-    for i in range(n_models):
-        for j in range(NUM_HEADS):
-            val = matrix[i, j]
-            color = "white" if val > 0.7 else "black"
-            ax.text(j, i, f"{val:.1%}", ha="center", va="center", fontsize=9,
-                    color=color, fontweight="bold")
-
-    ax.set_xticks(range(NUM_HEADS))
-    ax.set_xticklabels([f"Head {h}" for h in range(NUM_HEADS)], fontsize=9)
-    ax.set_yticks(range(n_models))
-    ax.set_yticklabels([MODEL_DISPLAY.get(m, m) for m in models], fontsize=10)
-    ax.set_xlabel("Attention Head (64d each)", fontsize=11)
-    ax.set_title("Per-Head Linear Probe Accuracy (SVHN, Block 11)", fontsize=13)
-
-    cbar = plt.colorbar(im, ax=ax, fraction=0.02, pad=0.04)
-    cbar.set_label("Probe Accuracy", fontsize=10)
-
-    plt.tight_layout()
-    path = output_dir / "block11_head_heatmap.png"
-    plt.savefig(path, dpi=150, bbox_inches="tight")
-    plt.close()
-    logger.info(f"  Saved: {path}")
-
-
-def plot_head_bars(all_results, output_dir):
-    """Grouped bar chart of per-head probe accuracy for each model."""
-    models = list(all_results.keys())
-    n_models = len(models)
-
-    fig, ax = plt.subplots(figsize=(14, 5))
-    x = np.arange(NUM_HEADS)
-    width = 0.8 / n_models
-
-    for i, model in enumerate(models):
-        accs = all_results[model]["per_head"]
-        offset = (i - n_models / 2 + 0.5) * width
-        ax.bar(
-            x + offset, accs, width,
-            label=MODEL_DISPLAY.get(model, model),
-            color=MODEL_COLORS.get(model, f"C{i}"),
-            alpha=0.85, edgecolor="black", linewidth=0.3,
-        )
-
-    ax.set_xticks(x)
-    ax.set_xticklabels([f"H{h}" for h in range(NUM_HEADS)], fontsize=10)
-    ax.set_ylabel("SVHN Probe Accuracy", fontsize=11)
-    ax.set_xlabel("Attention Head (Block 11)", fontsize=11)
-    ax.set_title("Per-Head Task Information (64d linear probe, SVHN)", fontsize=13)
-    ax.legend(fontsize=10)
-    ax.grid(axis="y", alpha=0.3)
-    ax.set_ylim(0, 1.05)
-    ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda v, _: f"{v:.0%}"))
-
-    plt.tight_layout()
-    path = output_dir / "block11_head_bars.png"
-    plt.savefig(path, dpi=150, bbox_inches="tight")
-    plt.close()
-    logger.info(f"  Saved: {path}")
 
 
 # --------------------------------------------------------------------------- #
@@ -618,25 +492,6 @@ def main():
             f"{attn_gain:>+10.4f} {mlp_gain:>+10.4f}"
         )
 
-    logger.info("\nPer-head probe accuracy:")
-    header = f"{'Model':<20}" + "".join(f"{'H' + str(h):>7}" for h in range(NUM_HEADS))
-    logger.info(header)
-    logger.info("-" * (20 + 7 * NUM_HEADS))
-    for model_name in models:
-        head_accs = all_results[model_name]["per_head"]
-        vals = "".join(f"{a:>7.3f}" for a in head_accs)
-        logger.info(f"{model_name:<20}{vals}")
-
-    # Highlight heads with biggest gain in merged model over pretrained
-    merged_heads = np.array(all_results["merged_8"]["per_head"])
-    pretrained_heads = np.array(all_results["pretrained"]["per_head"])
-    head_gains = merged_heads - pretrained_heads
-    top_heads = np.argsort(head_gains)[::-1][:3]
-    logger.info(
-        f"\nTop 3 heads by gain (merged over pretrained): "
-        f"{', '.join(f'H{h} (+{head_gains[h]:.3f})' for h in top_heads)}"
-    )
-
     # Key interpretation
     logger.info("\n" + "=" * 70)
     logger.info("INTERPRETATION")
@@ -674,8 +529,6 @@ def main():
     logger.info("=" * 70)
 
     plot_subcomponent_bars(all_results, OUTPUT_DIR)
-    plot_head_heatmap(all_results, OUTPUT_DIR)
-    plot_head_bars(all_results, OUTPUT_DIR)
 
     # =================================================================== #
     # Phase 7: Save results
@@ -685,8 +538,6 @@ def main():
             "model": MODEL_NAME,
             "n_train": n_train,
             "n_test": n_test,
-            "num_heads": NUM_HEADS,
-            "head_dim": HEAD_DIM,
             "block_analyzed": BLOCK_IDX,
             "merger": "InterferenceAwareMerger(mp_edge=True, isotropic=True)",
             "merge_tasks": N8_DATASETS,
