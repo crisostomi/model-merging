@@ -109,6 +109,50 @@ def extract_features(model, images, device, batch_size=256):
     return torch.cat(features, dim=0).numpy()
 
 
+@torch.no_grad()
+def extract_multilayer_features(model, images, device, batch_size=256):
+    """Extract features at multiple layers: block outputs, ln_post, and final output."""
+    from collections import defaultdict
+    model.eval()
+    model.to(device)
+
+    all_features = defaultdict(list)
+    visual = model.model.visual
+
+    # Register hooks for intermediate layers
+    hooks = []
+    hook_data = {}
+
+    # Hook last 3 blocks + ln_post
+    for block_idx in [9, 10, 11]:
+        name = f"block_{block_idx}"
+        def make_hook(n):
+            def hook_fn(module, input, output):
+                # output: (seq_len, batch, hidden) — CLS at index 0
+                hook_data[n] = output[0].detach().cpu()  # CLS token
+            return hook_fn
+        hooks.append(visual.transformer.resblocks[block_idx].register_forward_hook(make_hook(name)))
+
+    def ln_post_hook(module, input, output):
+        hook_data["ln_post"] = output.detach().cpu()
+    hooks.append(visual.ln_post.register_forward_hook(ln_post_hook))
+
+    for i in range(0, len(images), batch_size):
+        batch = images[i:i + batch_size].to(device)
+        out = model(batch)
+        all_features["output"].append(out.cpu())
+        for name, data in hook_data.items():
+            all_features[name].append(data)
+        hook_data.clear()
+
+    for h in hooks:
+        h.remove()
+    model.cpu()
+    torch.cuda.empty_cache()
+
+    return {name: torch.cat(tensors, dim=0).float().numpy() for name, tensors in all_features.items()}
+
+
 def train_linear_probe(train_features, train_labels, C=0.316):
     """Train logistic regression. C=0.316 (sqrt(0.1)) is a common CLIP probe default."""
     train_norm = normalize(train_features, norm="l2")
@@ -169,6 +213,7 @@ def main():
     parser.add_argument("--quick", action="store_true")
     parser.add_argument("--n-train", type=int, default=10000)
     parser.add_argument("--n-test", type=int, default=10000)
+    parser.add_argument("--multilayer", action="store_true", help="Also probe at intermediate layers")
     args = parser.parse_args()
 
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -253,6 +298,83 @@ def main():
     with open(json_path, "w") as f:
         json.dump({"metadata": {"n_train": n_train, "n_test": n_test, "model": MODEL_NAME}, "results": results}, f, indent=2)
     logger.info(f"Results saved to: {json_path}")
+
+    # --- Multi-layer probing ---
+    if args.multilayer:
+        logger.info("\n" + "=" * 60)
+        logger.info("MULTI-LAYER PROBING")
+        logger.info("=" * 60)
+
+        focus_models = {"svhn_ft": models["svhn_ft"], "merged_8": models["merged_8"]}
+        layer_results = {}
+
+        for model_name, model in focus_models.items():
+            logger.info(f"\n--- {model_name} (multilayer) ---")
+            train_ml = extract_multilayer_features(model, train_imgs, device)
+            test_ml = extract_multilayer_features(model, test_imgs, device)
+
+            layer_results[model_name] = {}
+            for layer_name in sorted(train_ml.keys(), key=lambda x: (
+                0 if x.startswith("block_") else 1 if x == "ln_post" else 2,
+                int(x.split("_")[1]) if x.startswith("block_") else 999,
+            )):
+                logger.info(f"  Layer: {layer_name} (dim={train_ml[layer_name].shape[1]})")
+                clf = train_linear_probe(train_ml[layer_name], train_labels)
+                acc = evaluate_probe(clf, test_ml[layer_name], test_labels)
+                logger.info(f"    PROBE ACC: {acc:.4f}")
+                layer_results[model_name][layer_name] = {
+                    "probe_accuracy": float(acc),
+                    "feature_dim": train_ml[layer_name].shape[1],
+                }
+
+        # Summary table
+        logger.info("\n" + "=" * 60)
+        logger.info("MULTI-LAYER RESULTS")
+        logger.info("=" * 60)
+        layers = list(layer_results["svhn_ft"].keys())
+        logger.info(f"{'Layer':<12} {'Dim':>5} {'SVHN-FT':>10} {'Merged-8':>10} {'Gap':>8}")
+        logger.info("-" * 50)
+        for layer in layers:
+            ft_acc = layer_results["svhn_ft"][layer]["probe_accuracy"]
+            m8_acc = layer_results["merged_8"][layer]["probe_accuracy"]
+            dim = layer_results["svhn_ft"][layer]["feature_dim"]
+            gap = m8_acc - ft_acc
+            logger.info(f"{layer:<12} {dim:>5} {ft_acc:>10.4f} {m8_acc:>10.4f} {gap:>+8.4f}")
+
+        # Plot multi-layer comparison
+        fig, ax = plt.subplots(figsize=(8, 5))
+        x = np.arange(len(layers))
+        width = 0.35
+        ft_accs = [layer_results["svhn_ft"][l]["probe_accuracy"] for l in layers]
+        m8_accs = [layer_results["merged_8"][l]["probe_accuracy"] for l in layers]
+
+        bars1 = ax.bar(x - width/2, ft_accs, width, label="SVHN Fine-tuned", color="tab:brown", alpha=0.85)
+        bars2 = ax.bar(x + width/2, m8_accs, width, label="Merged All-8", color="tab:red", alpha=0.85)
+
+        for bar, val in zip(bars1, ft_accs):
+            ax.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 0.005, f"{val:.3f}", ha="center", va="bottom", fontsize=8)
+        for bar, val in zip(bars2, m8_accs):
+            ax.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 0.005, f"{val:.3f}", ha="center", va="bottom", fontsize=8)
+
+        ax.set_xticks(x)
+        dims = [layer_results["svhn_ft"][l]["feature_dim"] for l in layers]
+        ax.set_xticklabels([f"{l}\n({d}d)" for l, d in zip(layers, dims)], fontsize=9)
+        ax.set_ylabel("SVHN Probe Accuracy", fontsize=11)
+        ax.set_title("Multi-Layer Probing: Where Is Information Lost?", fontsize=12)
+        ax.legend(fontsize=10)
+        ax.grid(axis="y", alpha=0.3)
+        ax.set_ylim(0, 1.05)
+        plt.tight_layout()
+        path = OUTPUT_DIR / "multilayer_probe_comparison.png"
+        plt.savefig(path, dpi=150, bbox_inches="tight")
+        plt.close()
+        logger.info(f"Saved: {path}")
+
+        # Save multilayer results
+        ml_json_path = OUTPUT_DIR / "multilayer_probe_results.json"
+        with open(ml_json_path, "w") as f:
+            json.dump(layer_results, f, indent=2)
+        logger.info(f"Multilayer results saved to: {ml_json_path}")
 
 
 if __name__ == "__main__":
