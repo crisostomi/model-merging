@@ -136,10 +136,38 @@ Compared intermediate activations (CLS token, 12 transformer blocks) of 4 models
 4. **Merging is a capacity problem**: Both merged models have only ~53% cosine similarity to SVHN-FT at block 11. EuroSAT explains only 4% of this 47% gap. The core issue is 8 tasks competing for fixed-capacity representation space.
 5. **Non-uniform disruption**: Cosine histogram at block 11 shows a long tail to 0.84 — some SVHN samples are 3-4x more affected than average.
 
-### Linear Probe Analysis (Session 3, IN PROGRESS)
-**Files**: `scripts/analyze_linear_probe.py`
+### Linear Probe + Multi-Layer Probing (Session 3, COMPLETE)
+**Tags**: `flywheel/linear-probe`, `flywheel/multilayer-probe` · **Files**: `scripts/analyze_linear_probe.py`
 
-Tests whether SVHN-discriminative information is preserved but rotated in merged representations by training fresh linear classifiers on extracted features.
+**Linear probe results** (10K train/test):
+| Model | Probe Accuracy | Recovery |
+|-------|---------------|----------|
+| Pretrained CLIP | 37.6% | baseline |
+| SVHN Fine-tuned | 96.6% | 100% |
+| Merged All-8 | 83.5% | 86.5% |
+| Merged No-EuroSAT | 85.9% | 88.9% |
+
+Bottleneck is BOTH alignment (~6 pts recoverable) AND genuine info loss (~7 pts irrecoverable).
+
+**Multi-layer probe results** (STUNNING):
+| Layer | Dim | SVHN-FT | Merged | Gap |
+|-------|-----|---------|--------|-----|
+| block_9 | 768 | 93.2% | 41.8% | -51.5% |
+| block_10 | 768 | 95.5% | 59.2% | -36.3% |
+| block_11 | 768 | 96.7% | 83.8% | -12.9% |
+| output | 512 | 96.6% | 83.5% | -13.1% |
+
+Block 11 single-handedly creates 42 pts of probe accuracy from near-pretrained representations. Output projection is NOT a bottleneck.
+
+### Layer-Specific Merging (Session 3, COMPLETE)
+**Tag**: `flywheel/layer-specific-merging` · **Files**: `conf/merger/interference_aware_late_*.yaml`
+
+| Config | Avg | SVHN | DTD | Delta Avg |
+|--------|-----|------|-----|-----------|
+| Baseline (MP+iso) | 84.85 | 77.66 | 73.94 | — |
+| late_noiso (blk 9-11) | 84.44 | **79.68** | 71.81 | -0.41 |
+
+**Key finding**: Late-block capacity is a ZERO-SUM GAME. Giving SVHN more capacity (+2.02 pts) takes it from DTD (-2.13 pts). Isotropic is the minimax solution. Breaking the ceiling requires capacity expansion (adapters, routing, MoE), not reallocation.
 
 ### Infrastructure
 - `slurm/launch_merging_eval.slurm`, `slurm/launch_analysis.slurm` — SLURM scripts
@@ -154,15 +182,19 @@ Tests whether SVHN-discriminative information is preserved but rotated in merged
 
 ## What To Do Next
 
-Session 3 answered the mechanism question: **EuroSAT interferes via classifier boundary shift, NOT representational corruption.** CKA >0.95 at all layers. The effect concentrates at block 11 (25% L2 shift). Both merged models are ~53% cosine-similar to SVHN-FT — the core problem is representation capacity, not pairwise interference.
+Session 3 built a complete mechanistic picture:
+1. **Interference = boundary shift** (CKA >0.95, not corruption) concentrating at block 11
+2. **Merged model retains 83.5% SVHN info** (86.5% recovery) but genuine capacity loss exists
+3. **Block 11 does all the work** — merged model has NO task info at block 9 (41.8%), all created at block 11 (83.8%)
+4. **Late-block capacity is zero-sum** — helping SVHN (+2 pts) hurts DTD (-2 pts). Isotropic is the minimax solution.
 
-### Priority 1: Classifier Re-alignment (IN PROGRESS)
+### Priority 1: Break the Capacity Ceiling
 
-The activation analysis shows representations are preserved but rotated. The linear probe experiment (scripts/analyze_linear_probe.py) tests this directly. If the probe recovers high accuracy, develop classifier re-alignment techniques:
+The fundamental limit is a single set of weights serving all tasks in late blocks. Promising directions:
 
-- **Linear probe results** (awaiting): If merged model probe >> original head → information preserved, focus on alignment
-- **Per-task classifier fine-tuning**: After merging, fine-tune each task's classification head on a small amount of task data using the merged encoder (frozen)
-- **Procrustes alignment of classification heads**: Align the original classification heads to the merged representation space via learned rotation
+- **Fisher/curvature-informed merging** (CAMEx, KFAC-TAK from literature): Use second-order info to identify which parameter directions are critical per task. Merge along "safe" directions while preserving task-critical ones.
+- **Per-task LoRA adapters in late blocks**: After merging, add small task-specific adapters (rank 4-8) to blocks 9-11 only. Trains on a few hundred examples per task. This directly expands late-block capacity.
+- **Attention head routing**: Some heads may be task-general, others task-specific. Route task-specific heads to keep their fine-tuned weights while merging shared heads.
 
 ### Priority 2: Challenging the Pipeline
 
@@ -193,7 +225,7 @@ Launch a sub-agent to survey recent ideas (2024-2026) from **adjacent fields**:
 
 ## Flywheel Protocol
 
-You have access to the Flywheel MCP tools. The research tree is rooted at node `8e5e0a0e-26fe-537c-84f7-b90d22d84816` (title: "Model Merging AutoResearch 1"). Currently 12 nodes, 9 committed.
+You have access to the Flywheel MCP tools. The research tree is rooted at node `8e5e0a0e-26fe-537c-84f7-b90d22d84816` (title: "Model Merging AutoResearch 1"). Currently 19 nodes (16 committed, 3 staged from Sessions 1-2).
 
 ### For each investigation:
 1. **Stage a node** (`flywheel_stage_node_create`) as child of the most relevant existing node
