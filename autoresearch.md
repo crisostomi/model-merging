@@ -323,4 +323,15 @@ A sub-agent implementing a complex experiment can itself spawn sub-agents for su
 - **Flywheel**: Root `8e5e0a0e-26fe-537c-84f7-b90d22d84816`.
 - **Login node limits**: Only `--quick` mode (3 tasks) for analysis scripts. Full analyses need SLURM (32GB RAM).
 
+## Session Continuity
+
+This session may be one in a chain of auto-restarting sessions (the SLURM job self-resubmits every ~3h45m). Before starting new work:
+
+1. **Check flywheel state** (`flywheel_summarize_node_tree`) to see what was accomplished in previous sessions
+2. **Check git log** for recent commits — code changes from previous sessions persist
+3. **Check for staged flywheel nodes** — these may represent in-progress work from a previous session that was interrupted. Decide whether to continue or abandon them.
+4. **Check SLURM queue** (`squeue -u $USER`) for any jobs still running from a previous session — their results may arrive shortly.
+
+Do NOT re-run experiments that were already completed. Do NOT re-implement scripts that already exist. Build on what was done.
+
 Interrupt the plan only if you are finding yourself in the position of doing quirky stuff that doesn't seem like the proper way, and wait for the user's prompt in these cases.
