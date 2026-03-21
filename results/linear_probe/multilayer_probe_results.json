@@ -1,0 +1,46 @@
+{
+  "svhn_ft": {
+    "block_9": {
+      "probe_accuracy": 0.9322,
+      "feature_dim": 768
+    },
+    "block_10": {
+      "probe_accuracy": 0.9551,
+      "feature_dim": 768
+    },
+    "block_11": {
+      "probe_accuracy": 0.9667,
+      "feature_dim": 768
+    },
+    "ln_post": {
+      "probe_accuracy": 0.9667,
+      "feature_dim": 768
+    },
+    "output": {
+      "probe_accuracy": 0.966,
+      "feature_dim": 512
+    }
+  },
+  "merged_8": {
+    "block_9": {
+      "probe_accuracy": 0.4175,
+      "feature_dim": 768
+    },
+    "block_10": {
+      "probe_accuracy": 0.592,
+      "feature_dim": 768
+    },
+    "block_11": {
+      "probe_accuracy": 0.838,
+      "feature_dim": 768
+    },
+    "ln_post": {
+      "probe_accuracy": 0.8375,
+      "feature_dim": 768
+    },
+    "output": {
+      "probe_accuracy": 0.8354,
+      "feature_dim": 512
+    }
+  }
+}

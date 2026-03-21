@@ -1,0 +1,35 @@
+{
+  "SVHN": {
+    "merged": {
+      "train_acc": 0.771,
+      "test_acc": 0.815
+    },
+    "attn_swap": {
+      "train_acc": 0.767,
+      "test_acc": 0.805,
+      "delta_vs_merged": -0.009999999999999898
+    }
+  },
+  "EuroSAT": {
+    "merged": {
+      "train_acc": 0.98,
+      "test_acc": 0.97
+    },
+    "attn_swap": {
+      "train_acc": 0.979,
+      "test_acc": 0.97,
+      "delta_vs_merged": 0.0
+    }
+  },
+  "MNIST": {
+    "merged": {
+      "train_acc": 0.991,
+      "test_acc": 0.97
+    },
+    "attn_swap": {
+      "train_acc": 0.992,
+      "test_acc": 0.97,
+      "delta_vs_merged": 0.0
+    }
+  }
+}

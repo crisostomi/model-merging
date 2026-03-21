@@ -1,0 +1,143 @@
+{
+  "metadata": {
+    "model": "ViT-B-32",
+    "merge_tasks": [
+      "SUN397",
+      "Cars",
+      "RESISC45",
+      "EuroSAT",
+      "SVHN",
+      "GTSRB",
+      "MNIST",
+      "DTD"
+    ],
+    "eval_tasks": [
+      "SVHN",
+      "EuroSAT",
+      "MNIST"
+    ],
+    "n_train": 1000,
+    "n_test": 200,
+    "merger": "InterferenceAwareMerger(mp_edge=True, isotropic=True)",
+    "affine_reg_lambda": 0.001,
+    "methods": {
+      "merged_probe": "Probe trained on merged features, evaluated on merged features",
+      "procrustes_probe": "Orthogonal rotation (Procrustes) to align merged->FT, then FT probe",
+      "affine_probe": "Affine transform (W,b) to align merged->FT, then FT probe",
+      "finetuned_probe": "Probe trained on fine-tuned features (upper bound)"
+    },
+    "evaluation": "LogisticRegression (C=0.316, L2-normalized features)",
+    "quick_mode": true
+  },
+  "per_task_results": {
+    "SVHN": {
+      "merged_probe": {
+        "train_acc": 0.783,
+        "test_acc": 0.8
+      },
+      "procrustes_probe": {
+        "train_acc": 0.587,
+        "test_acc": 0.635
+      },
+      "affine_probe": {
+        "train_acc": 0.965,
+        "test_acc": 0.775
+      },
+      "finetuned_probe": {
+        "train_acc": 0.991,
+        "test_acc": 0.955
+      },
+      "summary": {
+        "merged_to_ft_gap": 0.15499999999999992,
+        "procrustes_recovery": -0.16500000000000004,
+        "affine_recovery": -0.025000000000000022,
+        "procrustes_pct_recovered": -106.4516129032259,
+        "affine_pct_recovered": -16.129032258064537
+      }
+    },
+    "EuroSAT": {
+      "merged_probe": {
+        "train_acc": 0.982,
+        "test_acc": 0.96
+      },
+      "procrustes_probe": {
+        "train_acc": 0.937,
+        "test_acc": 0.91
+      },
+      "affine_probe": {
+        "train_acc": 0.999,
+        "test_acc": 0.975
+      },
+      "finetuned_probe": {
+        "train_acc": 1.0,
+        "test_acc": 0.99
+      },
+      "summary": {
+        "merged_to_ft_gap": 0.030000000000000027,
+        "procrustes_recovery": -0.04999999999999993,
+        "affine_recovery": 0.015000000000000013,
+        "procrustes_pct_recovered": -166.6666666666663,
+        "affine_pct_recovered": 50.0
+      }
+    },
+    "MNIST": {
+      "merged_probe": {
+        "train_acc": 0.981,
+        "test_acc": 1.0
+      },
+      "procrustes_probe": {
+        "train_acc": 0.927,
+        "test_acc": 0.96
+      },
+      "affine_probe": {
+        "train_acc": 1.0,
+        "test_acc": 1.0
+      },
+      "finetuned_probe": {
+        "train_acc": 1.0,
+        "test_acc": 0.995
+      },
+      "summary": {
+        "merged_to_ft_gap": -0.0050000000000000044,
+        "procrustes_recovery": -0.040000000000000036,
+        "affine_recovery": 0.0,
+        "procrustes_pct_recovered": 0.0,
+        "affine_pct_recovered": 0.0
+      }
+    }
+  },
+  "alignment_diagnostics": {
+    "SVHN": {
+      "ft_probe_on_merged_feats": 0.645,
+      "procrustes_residual": 268.93414306640625,
+      "cosine_merged_vs_ft": 0.4958866238594055,
+      "cosine_procrustes_vs_ft": 0.4434097409248352,
+      "affine_residual": 103.64718487530905,
+      "cosine_affine_vs_ft": 0.7063303247323642
+    },
+    "EuroSAT": {
+      "ft_probe_on_merged_feats": 0.935,
+      "procrustes_residual": 219.673583984375,
+      "cosine_merged_vs_ft": 0.7819756865501404,
+      "cosine_procrustes_vs_ft": 0.6953126788139343,
+      "affine_residual": 44.468025921399025,
+      "cosine_affine_vs_ft": 0.9375686383849936
+    },
+    "MNIST": {
+      "ft_probe_on_merged_feats": 0.985,
+      "procrustes_residual": 230.52178955078125,
+      "cosine_merged_vs_ft": 0.6078965663909912,
+      "cosine_procrustes_vs_ft": 0.5446736216545105,
+      "affine_residual": 32.14385695557457,
+      "cosine_affine_vs_ft": 0.965849102439021
+    }
+  },
+  "averages": {
+    "merged_probe": 0.9199999999999999,
+    "procrustes_probe": 0.835,
+    "affine_probe": 0.9166666666666666,
+    "finetuned_probe": 0.98,
+    "procrustes_pct_recovered": -91.0394265232974,
+    "affine_pct_recovered": 11.290322580645153
+  }
+}

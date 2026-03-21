@@ -1,0 +1,65 @@
+{
+  "SVHN": {
+    "merged": {
+      "train_acc": 0.771,
+      "test_acc": 0.815
+    },
+    "attn_swap": {
+      "train_acc": 0.767,
+      "test_acc": 0.805,
+      "delta_vs_merged": -0.009999999999999898
+    },
+    "block_swap": {
+      "train_acc": 0.762,
+      "test_acc": 0.795,
+      "delta_vs_merged": -0.019999999999999907
+    },
+    "late_blocks_swap": {
+      "train_acc": 0.809,
+      "test_acc": 0.825,
+      "delta_vs_merged": 0.010000000000000009
+    }
+  },
+  "EuroSAT": {
+    "merged": {
+      "train_acc": 0.98,
+      "test_acc": 0.97
+    },
+    "attn_swap": {
+      "train_acc": 0.979,
+      "test_acc": 0.97,
+      "delta_vs_merged": 0.0
+    },
+    "block_swap": {
+      "train_acc": 0.98,
+      "test_acc": 0.97,
+      "delta_vs_merged": 0.0
+    },
+    "late_blocks_swap": {
+      "train_acc": 0.982,
+      "test_acc": 0.955,
+      "delta_vs_merged": -0.015000000000000013
+    }
+  },
+  "MNIST": {
+    "merged": {
+      "train_acc": 0.991,
+      "test_acc": 0.97
+    },
+    "attn_swap": {
+      "train_acc": 0.992,
+      "test_acc": 0.97,
+      "delta_vs_merged": 0.0
+    },
+    "block_swap": {
+      "train_acc": 0.994,
+      "test_acc": 0.975,
+      "delta_vs_merged": 0.0050000000000000044
+    },
+    "late_blocks_swap": {
+      "train_acc": 0.992,
+      "test_acc": 0.985,
+      "delta_vs_merged": 0.015000000000000013
+    }
+  }
+}

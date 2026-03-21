@@ -1,0 +1,25 @@
+{
+  "metadata": {
+    "n_train": 10000,
+    "n_test": 10000,
+    "model": "ViT-B-32"
+  },
+  "results": {
+    "pretrained": {
+      "probe_accuracy": 0.3763,
+      "feature_dim": 512
+    },
+    "svhn_ft": {
+      "probe_accuracy": 0.966,
+      "feature_dim": 512
+    },
+    "merged_8": {
+      "probe_accuracy": 0.8354,
+      "feature_dim": 512
+    },
+    "merged_7": {
+      "probe_accuracy": 0.859,
+      "feature_dim": 512
+    }
+  }
+}

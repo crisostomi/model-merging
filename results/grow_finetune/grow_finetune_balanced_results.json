@@ -1,0 +1,70 @@
+{
+  "config": {
+    "method": "balanced_supervised_multitask_classification",
+    "expand_blocks": [
+      9,
+      10,
+      11
+    ],
+    "epochs": 30,
+    "lr": 0.0001,
+    "weight_decay": 0.01,
+    "batch_size": 32,
+    "samples_per_task": {
+      "SUN397": 2000,
+      "Cars": 2000,
+      "RESISC45": 1000,
+      "DTD": 1000,
+      "SVHN": 500,
+      "GTSRB": 500,
+      "MNIST": 500,
+      "EuroSAT": 500
+    },
+    "total_training_samples": 8000,
+    "trainable_params": 14164992
+  },
+  "baseline_results": {
+    "SUN397": 0.7206045340050378,
+    "Cars": 0.7397089914189777,
+    "RESISC45": 0.9001587301587302,
+    "EuroSAT": 0.9692592592592593,
+    "SVHN": 0.7455055316533498,
+    "GTSRB": 0.9200316706254948,
+    "MNIST": 0.9679,
+    "DTD": 0.7430851063829788
+  },
+  "baseline_average": 0.8382817279379786,
+  "expanded_pre_training_results": {
+    "SUN397": 0.7206045340050378,
+    "Cars": 0.7397089914189777,
+    "RESISC45": 0.9001587301587302,
+    "EuroSAT": 0.9692592592592593,
+    "SVHN": 0.7455055316533498,
+    "GTSRB": 0.9200316706254948,
+    "MNIST": 0.9679,
+    "DTD": 0.7430851063829788
+  },
+  "expanded_pre_training_average": 0.8382817279379786,
+  "expanded_results": {
+    "SUN397": 0.7080100755667507,
+    "Cars": 0.7741574431040915,
+    "RESISC45": 0.9230158730158731,
+    "EuroSAT": 0.9707407407407408,
+    "SVHN": 0.8556776275353412,
+    "GTSRB": 0.9466349960411719,
+    "MNIST": 0.9808,
+    "DTD": 0.7787234042553192
+  },
+  "expanded_average": 0.867220020032411,
+  "improvement": 0.02893829209443244,
+  "per_task_delta": {
+    "SUN397": -0.012594458438287104,
+    "Cars": 0.03444845168511379,
+    "RESISC45": 0.02285714285714291,
+    "EuroSAT": 0.001481481481481528,
+    "SVHN": 0.1101720958819914,
+    "GTSRB": 0.026603325415677004,
+    "MNIST": 0.012900000000000023,
+    "DTD": 0.03563829787234041
+  }
+}

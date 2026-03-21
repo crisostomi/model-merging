@@ -1,0 +1,139 @@
+{
+  "metadata": {
+    "model": "ViT-B-32",
+    "merge_tasks": [
+      "SUN397",
+      "Cars",
+      "RESISC45",
+      "EuroSAT",
+      "SVHN",
+      "GTSRB",
+      "MNIST",
+      "DTD"
+    ],
+    "eval_tasks": [
+      "SVHN",
+      "EuroSAT",
+      "MNIST"
+    ],
+    "n_train": 1000,
+    "n_test": 200,
+    "merger": "InterferenceAwareMerger(mp_edge=True, isotropic=True)",
+    "swap_configs": {
+      "attn_swap": "Block 11 attention (in_proj, out_proj)",
+      "block_swap": "Block 11 full (attn + MLP + LN)",
+      "late_blocks_swap": "Blocks 9-11 full"
+    },
+    "evaluation": "Linear probe (LogisticRegression, C=0.316, L2-normalized features)",
+    "quick_mode": true
+  },
+  "per_task_results": {
+    "SVHN": {
+      "merged": {
+        "train_acc": 0.771,
+        "test_acc": 0.815
+      },
+      "attn_swap": {
+        "train_acc": 0.767,
+        "test_acc": 0.805,
+        "delta_vs_merged": -0.009999999999999898
+      },
+      "block_swap": {
+        "train_acc": 0.762,
+        "test_acc": 0.795,
+        "delta_vs_merged": -0.019999999999999907
+      },
+      "late_blocks_swap": {
+        "train_acc": 0.809,
+        "test_acc": 0.825,
+        "delta_vs_merged": 0.010000000000000009
+      }
+    },
+    "EuroSAT": {
+      "merged": {
+        "train_acc": 0.98,
+        "test_acc": 0.97
+      },
+      "attn_swap": {
+        "train_acc": 0.979,
+        "test_acc": 0.97,
+        "delta_vs_merged": 0.0
+      },
+      "block_swap": {
+        "train_acc": 0.98,
+        "test_acc": 0.97,
+        "delta_vs_merged": 0.0
+      },
+      "late_blocks_swap": {
+        "train_acc": 0.982,
+        "test_acc": 0.955,
+        "delta_vs_merged": -0.015000000000000013
+      }
+    },
+    "MNIST": {
+      "merged": {
+        "train_acc": 0.991,
+        "test_acc": 0.97
+      },
+      "attn_swap": {
+        "train_acc": 0.992,
+        "test_acc": 0.97,
+        "delta_vs_merged": 0.0
+      },
+      "block_swap": {
+        "train_acc": 0.994,
+        "test_acc": 0.975,
+        "delta_vs_merged": 0.0050000000000000044
+      },
+      "late_blocks_swap": {
+        "train_acc": 0.992,
+        "test_acc": 0.985,
+        "delta_vs_merged": 0.015000000000000013
+      }
+    }
+  },
+  "cross_task_interference": {
+    "SVHN": {
+      "SVHN": {
+        "test_acc": 0.825,
+        "delta_vs_merged": 0.010000000000000009
+      },
+      "EuroSAT": {
+        "test_acc": 0.965,
+        "delta_vs_merged": -0.0050000000000000044
+      },
+      "MNIST": {
+        "test_acc": 0.965,
+        "delta_vs_merged": -0.0050000000000000044
+      }
+    },
+    "EuroSAT": {
+      "SVHN": {
+        "test_acc": 0.775,
+        "delta_vs_merged": -0.039999999999999925
+      },
+      "EuroSAT": {
+        "test_acc": 0.955,
+        "delta_vs_merged": -0.015000000000000013
+      },
+      "MNIST": {
+        "test_acc": 0.955,
+        "delta_vs_merged": -0.015000000000000013
+      }
+    },
+    "MNIST": {
+      "SVHN": {
+        "test_acc": 0.805,
+        "delta_vs_merged": -0.009999999999999898
+      },
+      "EuroSAT": {
+        "test_acc": 0.97,
+        "delta_vs_merged": 0.0
+      },
+      "MNIST": {
+        "test_acc": 0.985,
+        "delta_vs_merged": 0.015000000000000013
+      }
+    }
+  }
+}

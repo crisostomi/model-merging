@@ -1,0 +1,20 @@
+{
+  "SVHN": {
+    "merged": {
+      "train_acc": 0.771,
+      "test_acc": 0.815
+    }
+  },
+  "EuroSAT": {
+    "merged": {
+      "train_acc": 0.98,
+      "test_acc": 0.97
+    }
+  },
+  "MNIST": {
+    "merged": {
+      "train_acc": 0.991,
+      "test_acc": 0.97
+    }
+  }
+}

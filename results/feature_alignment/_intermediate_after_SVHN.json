@@ -1,0 +1,27 @@
+{
+  "SVHN": {
+    "merged_probe": {
+      "train_acc": 0.783,
+      "test_acc": 0.8
+    },
+    "procrustes_probe": {
+      "train_acc": 0.587,
+      "test_acc": 0.635
+    },
+    "affine_probe": {
+      "train_acc": 0.965,
+      "test_acc": 0.775
+    },
+    "finetuned_probe": {
+      "train_acc": 0.991,
+      "test_acc": 0.955
+    },
+    "summary": {
+      "merged_to_ft_gap": 0.15499999999999992,
+      "procrustes_recovery": -0.16500000000000004,
+      "affine_recovery": -0.025000000000000022,
+      "procrustes_pct_recovered": -106.4516129032259,
+      "affine_pct_recovered": -16.129032258064537
+    }
+  }
+}

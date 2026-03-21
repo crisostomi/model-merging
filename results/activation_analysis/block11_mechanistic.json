@@ -1,0 +1,37 @@
+{
+  "metadata": {
+    "model": "ViT-B-32",
+    "n_train": 5000,
+    "n_test": 5000,
+    "block_analyzed": 11,
+    "merger": "InterferenceAwareMerger(mp_edge=True, isotropic=True)",
+    "merge_tasks": [
+      "SUN397",
+      "Cars",
+      "RESISC45",
+      "EuroSAT",
+      "SVHN",
+      "GTSRB",
+      "MNIST",
+      "DTD"
+    ],
+    "probe_C": 0.316
+  },
+  "results": {
+    "pretrained": {
+      "block_10_out": 0.2468,
+      "block_11_post_attn": 0.3822,
+      "block_11_out": 0.3766
+    },
+    "svhn_ft": {
+      "block_10_out": 0.948,
+      "block_11_post_attn": 0.9664,
+      "block_11_out": 0.9666
+    },
+    "merged_8": {
+      "block_10_out": 0.4304,
+      "block_11_post_attn": 0.8246,
+      "block_11_out": 0.8276
+    }
+  }
+}
