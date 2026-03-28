@@ -239,3 +239,4 @@ results/ViT-L-14/**
 *.pdf
 
 checkpoints/
+slurm/*

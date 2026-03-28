@@ -1,0 +1,34 @@
+{
+  "n_train": 5000,
+  "n_test": 2000,
+  "results": {
+    "merged_baseline": {
+      "acc": 0.821,
+      "label": "Merged (baseline)"
+    },
+    "svhn_ft": {
+      "acc": 0.957,
+      "label": "SVHN-FT (upper bound)"
+    },
+    "qk_heads348": {
+      "acc": 0.8215,
+      "label": "QK heads {3,4,8} from FT"
+    },
+    "qkv_heads348": {
+      "acc": 0.821,
+      "label": "QKV heads {3,4,8} from FT"
+    },
+    "qkv_out_heads348": {
+      "acc": 0.82,
+      "label": "QKV+out heads {3,4,8} from FT"
+    },
+    "full_attn": {
+      "acc": 0.819,
+      "label": "Full attn block 11 from FT"
+    },
+    "full_block": {
+      "acc": 0.8125,
+      "label": "Full block 11 from FT"
+    }
+  }
+}

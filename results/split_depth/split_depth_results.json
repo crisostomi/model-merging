@@ -1,0 +1,54 @@
+{
+  "n_train": 5000,
+  "n_test": 2000,
+  "results": {
+    "split_8task_k-1": {
+      "acc": 0.963,
+      "label": "All FT (UB)",
+      "experiment": "A",
+      "split_k": -1
+    },
+    "split_8task_k7": {
+      "acc": 0.849,
+      "label": "Split K=7",
+      "experiment": "A",
+      "split_k": 7
+    },
+    "split_8task_k8": {
+      "acc": 0.829,
+      "label": "Split K=8",
+      "experiment": "A",
+      "split_k": 8
+    },
+    "split_8task_k9": {
+      "acc": 0.819,
+      "label": "Split K=9",
+      "experiment": "A",
+      "split_k": 9
+    },
+    "split_8task_k10": {
+      "acc": 0.8115,
+      "label": "Split K=10",
+      "experiment": "A",
+      "split_k": 10
+    },
+    "split_8task_k11": {
+      "acc": 0.8195,
+      "label": "All merged (baseline)",
+      "experiment": "A",
+      "split_k": 11
+    },
+    "excl_block11_k10": {
+      "acc": 0.6255,
+      "label": "7-task merge + FT block 11",
+      "experiment": "B",
+      "split_k": 10
+    },
+    "excl_block11_k9": {
+      "acc": 0.6455,
+      "label": "7-task merge + FT blocks 10-11",
+      "experiment": "B",
+      "split_k": 9
+    }
+  }
+}

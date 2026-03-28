@@ -121,6 +121,10 @@ def load_dataset(dataset_name, preprocess, n_train=1000, n_test=500):
     load_kwargs["split"] = test_split
     test_ds = hf_load(**load_kwargs)
 
+    # Shuffle to avoid class-sorted datasets (e.g. EuroSAT, MNIST)
+    train_ds = train_ds.shuffle(seed=42)
+    test_ds = test_ds.shuffle(seed=42)
+
     def process(ds, n):
         imgs, labels = [], []
         for i, s in enumerate(ds):
